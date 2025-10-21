@@ -1,28 +1,26 @@
 package linearfn
 
-case class Person1(name: String, age: Int):
-  def method(): String = s"$name is $age years old"
-case class Person2(name: String, id: Int):
-  def method(): String = s"$name has id $id"
+case class Person(name: String, age: Int):
+  def greet(): String = s"Hello, I'm $name"
+  def getAge(): Int = age
 
 @main def main() = {
   println("runs")
 
-  // selectable
-  val person1 = Person1("Alice", 30)
-  val person2 = Person2("Bob", 25)
+  val person1 = Person("Alice", 30)
+  val person2 = Person("Bob", 25)
 
-//  val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
-////    println(s"method access: ${refs._1.method()}")  // doesn't work
-//    println(s"field access: ${refs._1.age}")  // works
-//    val testRef: RestrictedSelectable.Restricted[Person1, (0, 1)] = RestrictedSelectable.Restricted.LinearRef[Person1, (0, 1)](() => person1)
-//    (testRef, refs._2)
-//  )
-//  println(s"ret selectable: $ret")
+  val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    // Body looks like regular code
+    val age1 = refs._1.age  // Field access via Selectable - stages the computation
+    (age1, refs._2)
+  )
+
+  println(s"Results after execution: $ret")
 
   // dynamic
-  val ret2 = RestrictedDynamic.LinearFn.apply((10, "string"))(refs =>
-    (refs._1 + 1, refs._2 + refs._1)
-  )
-  println(s"ret dynamic: $ret2")
+//  val ret2 = RestrictedDynamic.LinearFn.apply((10, "string"))(refs =>
+//    (refs._1 + 1, refs._2 + refs._1)
+//  )
+//  println(s"ret dynamic: $ret2")
 }

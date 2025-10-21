@@ -5,6 +5,7 @@ import scala.language.implicitConversions
 import scala.language.reflectiveCalls
 import NamedTuple.{AnyNamedTuple, NamedTuple}
 import scala.annotation.implicitNotFound
+import scala.reflect.Selectable.reflectiveSelectable
 
 /**
  * Use Selectable to proxy field/method access.
@@ -42,6 +43,16 @@ object RestrictedSelectable:
     case EmptyTuple => EmptyTuple
     case Restricted[a, d] *: tail => d *: ExtractDependencyTypes[tail]
 
+  type CollateDeps[A, D <: Tuple] <: Tuple = A match
+    case Restricted[a, d] =>
+      Tuple.Concat[d, D]
+    case _ =>
+      D
+
+  type CollateAllDeps[A <: Tuple, D <: Tuple] <: Tuple = A match
+    case EmptyTuple => D
+    case h *: t => CollateAllDeps[t, CollateDeps[h, D]]
+
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
@@ -51,13 +62,18 @@ object RestrictedSelectable:
 
   trait Restricted[A, D <: Tuple] extends Selectable:
     type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
-    def selectDynamic(name: String) =
+    def stageField(name: String): Restricted[A, D]
+    def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2]
+
+    def selectDynamic(name: String) = {
       println(s"field access $name")
-      ???
-    // TODO: how to get return type of name on B and wrap in Restricted?
-    def applyDynamic(name: String, ctags: Class[?]*)(args: Any*) =
-      println(s"applying $name with args: $args")
-      ???
+      stageField(name)
+    }
+
+    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
+      println(s"applying $method with arg: $arg")
+      stageCall(method, Tuple1(arg))
+    }
 
     def execute(): A
 
@@ -65,13 +81,31 @@ object RestrictedSelectable:
     case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
       def execute(): A = fn()
 
+      override def stageField(name: String) =
+        LinearRef(() =>
+          println(s"inside fn: staged field access $name")
+          val obj = fn()
+          val field = obj.getClass.getDeclaredField(name)
+          field.setAccessible(true)
+          field.get(obj).asInstanceOf[A]
+        )
+
+      override def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2] = {
+        println(s"staging call $name with args: $args")
+        LinearRef[A, D2](() =>
+          println(s"inside fn: staged call $name with args: $args")
+          // should be equivalent to fn().name(args)
+          ???
+        )
+      }
+
   object LinearFn:
     def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
     (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
-    (using @implicitNotFound("Cannot extract result types from RQT: ${RT}") ev1: RT =:= ExtractResultTypes[RQT])
+    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
     (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
     (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
     (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT])
     (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT]) =
