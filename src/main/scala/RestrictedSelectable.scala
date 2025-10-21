@@ -73,11 +73,11 @@ object RestrictedSelectable:
     def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
     (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
     (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: DT <:< InverseMapDeps[RT])
-//    (using @implicitNotFound("Failed: ${RQT}") ev3: RT <:< ToRestricted[AT, DT])
-    (using @implicitNotFound("Failed to match restricted types") ev3: RQT =:= ToRestricted[RT, ExtractDependencyTypes[RQT]])
+    (using @implicitNotFound("Cannot extract result types from RQT: ${RT}") ev1: RT =:= ExtractResultTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
+    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT])
     (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT]) =
       val argsRefs = args.toArray.map(a => Restricted.LinearRef(Some(a), x => x))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
