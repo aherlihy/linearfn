@@ -6,6 +6,7 @@ import scala.language.reflectiveCalls
 import NamedTuple.{AnyNamedTuple, NamedTuple}
 import scala.annotation.implicitNotFound
 import scala.reflect.Selectable.reflectiveSelectable
+import Tuple.Concat
 
 /**
  * Use Selectable to proxy field/method access.
@@ -63,7 +64,7 @@ object RestrictedSelectable:
         h.execute() *:
           tupleExecute(tail)
 
-  trait Restricted[A, D <: Tuple] extends Selectable:
+  sealed trait Restricted[A, D <: Tuple] extends Selectable:
     type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
     def stageField(name: String): Restricted[A, D]
     def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2]
@@ -84,6 +85,9 @@ object RestrictedSelectable:
     }
 
     def execute(): A
+
+    def product[B, D2 <: Tuple](b: Restricted[B, D2]): Restricted[(A, B), Concat[D, D2]]
+    def map[B](f: A => B): Restricted[B, D]
 
   object Restricted:
     case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
@@ -119,6 +123,14 @@ object RestrictedSelectable:
           method.invoke(obj, executedArgs*).asInstanceOf[R]
         )
       }
+
+      override def product[B, D2 <: Tuple](b: Restricted[B, D2]): Restricted[(A, B), Concat[D, D2]] =
+        b match
+            case LinearRef(bfn) =>
+              LinearRef(() => (fn(), bfn()))
+
+      override def map[B](f: A => B): Restricted[B, D] =
+        LinearRef(() => f(fn()))
 
   object LinearFn:
     def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]

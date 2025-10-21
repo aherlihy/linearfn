@@ -131,6 +131,30 @@ class RestrictedSelectableTest extends FunSuite:
     assert(obtained.contains(s"ag2e is not a member"), s"obtained: $obtained")
   }
 
+  test("graded applicative API") {
+    import RestrictedSelectable.~
+    case class Person2(name: String, age: Int):
+      def greet(): String = s"Hello, I'm $name"
+
+      def getAge(): Int = age
+
+      def combine(other: Person2): Person2 =
+        Person2(s"${this.name} & ${other.name}", this.age + other.age)
+
+    val person1 = Person2("Alice", 30)
+    val person2 = Person2("Bob", 25)
+    val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+      // TODO: cats-like syntactic sugar API so we can write
+      // val age1 = (refs._1, refs._2).mapN(_.combine(_))
+      val age1 = refs._1.product(refs._2).map(_.combine(_))
+
+      val age2 = age1.map(r => r.copy(age = r.age + 1))
+
+      (age2, refs._2)
+    )
+    assertEquals(ret, (Person2("Alice & Bob", 55), person2))
+  }
+
   test("dependencies are tracked for applyDynamic") {
     import RestrictedSelectable.~
     case class Person2(name: String, age: Int):
