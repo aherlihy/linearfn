@@ -1,6 +1,6 @@
 # LinearFn - Linear Functions in Scala 3
 
-A Scala 3 library for enforcing **linearity** at compile time at the function level.
+A Scala 3 library for enforcing **linearity** at compile time at the function level without modifying the compiler itself that works for embedded DSL and also regular Scala functions.
 
 We define linearity as: for a function with n arguments and n return values, each argument can appear maximum once per return value but must be present in at least one return value.
 
