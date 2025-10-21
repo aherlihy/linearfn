@@ -36,6 +36,13 @@ object RestrictedDynamic:
   type StripRestricted[T] = T match
     case Restricted[a, b, d] => b
 
+  type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case Restricted[a, b, d] *: tail => b *: ExtractResultTypes[tail]
+  type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case Restricted[a, b, d] *: tail => d *: ExtractDependencyTypes[tail]
+
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
@@ -64,13 +71,16 @@ object RestrictedDynamic:
       def execute(): B = fn(wrapped)
 
   object LinearFn:
-    def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple]
+    def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
-    (fns: ToLinearRef[AT] => RT)
+    (fns: ToLinearRef[AT] => RQT)
+    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
     (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: DT <:< InverseMapDeps[RT])
-    (using @implicitNotFound("Failed: ${RQT}") ev3: RT <:< ToRestricted[AT, DT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RT]) =
+    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: DT <:< InverseMapDeps[RQT])
+//    (using @implicitNotFound("Failed: ${RQT}") ev3: RT <:< ToRestricted[RT, DT])
+    (using @implicitNotFound("Failed to match restricted types")
+      ev3: RQT =:= ToRestricted[RT, ExtractDependencyTypes[RQT]])
+    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT]) =
       val argsRefs = args.toArray.map(a => Restricted.LinearRef(Some(a), x => x))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
       val exec = fns(refsTuple)
