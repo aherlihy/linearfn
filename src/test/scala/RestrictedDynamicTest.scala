@@ -105,7 +105,7 @@ class RestrictedDynamicTest extends FunSuite:
 //    val person = Person("Alice", 30)
 //
 //    val result = RestrictedDynamic.LinearFn.apply(Tuple1(person))(refs =>
-//      val age = refs._1.age // Should stage the field access
+//      val age = refs._1.age
 //      Tuple1(age)
 //    )
 //
@@ -119,7 +119,7 @@ class RestrictedDynamicTest extends FunSuite:
 //      val person = Person("Alice", 30)
 //
 //      val result = RestrictedDynamic.LinearFn.apply(Tuple1(person))(refs =>
-//        val age = refs._1.ag2e // Should stage the field access
+//        val age = refs._1.ag2e
 //        Tuple1(age)
 //      )
 //      """)
