@@ -1,6 +1,5 @@
 package linearfn
 
-import RestrictedSelectable.~
 
 // Define Person normally
 case class Person(name: String, age: Int):
@@ -9,30 +8,33 @@ case class Person(name: String, age: Int):
   def combine(other: Person): Person =
     Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-// Force the user to declare methods they are going to use - not very nice.
-extension [D <: Tuple](p: Person ~ D)
-  def greet(): String ~ D = p.stageCall[String, D]("greet", EmptyTuple)
-  def getAge(): Int ~ D = p.stageCall[Int, D]("getAge", EmptyTuple)
-  def combine[D2 <: Tuple](other: Person ~ D2): Person ~ (Tuple.Concat[D, D2]) =
-    p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
-
 @main def main() = {
-  println("runs")
-
   val person1 = Person("Alice", 30)
   val person2 = Person("Bob", 25)
 
-  val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
-    // Body looks like regular code
-    val age1 = refs._1.combine(refs._2)  // Field access via Selectable - stages the computation
-    (age1, refs._2)
-  )
-
-  println(s"Results after execution: $ret")
-
-  // dynamic
-//  val ret2 = RestrictedDynamic.LinearFn.apply((10, "string"))(refs =>
-//    (refs._1 + 1, refs._2 + refs._1)
+//  // Test 1: Field access via selectDynamic macro
+//  println("=== Test 1: Field access ===")
+//  val res1 = RestrictedDynamicMacros.LinearFn.apply((person1, person2))(refs =>
+//    val nameAccess = refs._1.name
+//    (nameAccess, refs._2.age)
 //  )
-//  println(s"ret dynamic: $ret2")
+//  println(s"Result: $res1\n")
+//
+//  // Test 2: Zero-arg method calls via applyDynamic macro
+//  println("=== Test 2: Method calls (zero args) ===")
+//  val res2 = RestrictedDynamicMacros.LinearFn.apply((person1, person2))(refs =>
+//    val greeting = refs._1.greet()
+//    (greeting, refs._2.getAge())
+//  )
+//  println(s"Result: $res2\n")
+
+  // Test 3: Method call with Restricted argument (dependency tracking)
+  // This tests that when calling refs._1.combine(refs._2), the macro correctly
+  // concatenates dependencies: Tuple.Concat[Tuple1[1], Tuple1[0]] = (1, 0)
+//  println("=== Test 3: Method with Restricted arg (dependency tracking) ===")
+//  val res3 = RestrictedDynamicMacros.LinearFn.apply((person1, person2))(refs =>
+//    val combined = refs._1.combine(refs._2)
+//    (combined, combined)
+//  )
+//  println(s"Result: $res3")
 }
