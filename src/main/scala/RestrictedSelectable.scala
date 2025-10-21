@@ -9,12 +9,15 @@ import scala.reflect.Selectable.reflectiveSelectable
 
 /**
  * Use Selectable to proxy field/method access.
- * TODO: applyDynamic doesn't work yet, needs return type?
+ * TODO: for applyDynamic to work, seems the user needs to manually declare methods somewhere, not sure if there's a way to do that without leaking Restricted.
  * Good because type safe, but doesn't work out of the box with non-product types.
  * TODO: add an implicit conversion wrapper from Int to something that can use Fields?
  * Ideally should be able to work with any type.
  */
 object RestrictedSelectable:
+
+  // Type alias to hide "Restricted" from user code. Horrible!
+  type ~[A, D <: Tuple] = Restricted[A, D]
 
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
     case (elem, index) => Restricted[elem, Tuple1[index]]]
@@ -63,16 +66,21 @@ object RestrictedSelectable:
   trait Restricted[A, D <: Tuple] extends Selectable:
     type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
     def stageField(name: String): Restricted[A, D]
-    def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2]
+    def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2]
 
     def selectDynamic(name: String) = {
       println(s"field access $name")
       stageField(name)
     }
 
+    def applyDynamic(method: String)(): Restricted[A, D] = {
+      println(s"applying $method with no args")
+      stageCall[A, D](method, EmptyTuple)
+    }
+
     def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
       println(s"applying $method with arg: $arg")
-      stageCall(method, Tuple1(arg))
+      stageCall[A, CollateDeps[T1, D]](method, Tuple1(arg))
     }
 
     def execute(): A
@@ -90,12 +98,25 @@ object RestrictedSelectable:
           field.get(obj).asInstanceOf[A]
         )
 
-      override def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2] = {
+      override def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2] = {
         println(s"staging call $name with args: $args")
-        LinearRef[A, D2](() =>
+        LinearRef[R, D2](() =>
           println(s"inside fn: staged call $name with args: $args")
-          // should be equivalent to fn().name(args)
-          ???
+          val obj = fn()
+
+          // Execute any Restricted arguments to get their actual values
+          val executedArgs = args.productIterator.map {
+            case r: Restricted[_, _] => r.execute()
+            case other => other
+          }.toSeq
+
+          val method = if (executedArgs.isEmpty) {
+            obj.getClass.getDeclaredMethod(name)
+          } else {
+            val argClasses = executedArgs.map(_.getClass.asInstanceOf[Class[?]]).toArray
+            obj.getClass.getDeclaredMethod(name, argClasses*)
+          }
+          method.invoke(obj, executedArgs*).asInstanceOf[R]
         )
       }
 
@@ -104,6 +125,7 @@ object RestrictedSelectable:
     (args: AT)
     (fns: ToLinearRef[AT] => RQT)
     (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
+//            /* DEBUG */ (using @implicitNotFound("DEBUG: RQT = ${RQT}") debugRQT: RQT =:= Nothing)
     (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
     (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
     (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)

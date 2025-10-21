@@ -8,8 +8,7 @@ import scala.annotation.implicitNotFound
 
 /**
  * Use Dynamic to proxy field/method access.
- * Not good because not type safe, but works with any type.
- * TODO: stage computation such that type checking happens on fn?
+ * Not ideal because not type safe, but unlike Selectable works with any input type and applyDynamic is called.
  */
 object RestrictedDynamic:
 

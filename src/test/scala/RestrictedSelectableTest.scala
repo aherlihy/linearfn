@@ -131,3 +131,58 @@ class RestrictedSelectableTest extends FunSuite:
     assert(obtained.contains(s"ag2e is not a member"), s"obtained: $obtained")
   }
 
+  test("dependencies are tracked for applyDynamic") {
+    import RestrictedSelectable.~
+    case class Person2(name: String, age: Int):
+      def greet(): String = s"Hello, I'm $name"
+
+      def getAge(): Int = age
+
+      def combine(other: Person2): Person2 =
+        Person2(s"${this.name} & ${other.name}", this.age + other.age)
+
+    // Force the user to declare methods they are going to use - not very nice.
+    extension [D <: Tuple](p: Person2 ~ D)
+      def greet(): String ~ D = p.stageCall[String, D]("greet", EmptyTuple)
+      def getAge(): Int ~ D = p.stageCall[Int, D]("getAge", EmptyTuple)
+      def combine[D2 <: Tuple](other: Person2 ~ D2): Person2 ~ (Tuple.Concat[D, D2]) =
+        p.stageCall[Person2, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+
+
+    val person1 = Person2("Alice", 30)
+    val person2 = Person2("Bob", 25)
+    val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+      val age1 = refs._1.combine(refs._2)
+      (age1, refs._2)
+    )
+    assertEquals(ret, (Person2("Alice & Bob", 55), person2))
+  }
+  test("dependencies are tracked for applyDynamic and fails") {
+    val obtained = compileErrors(
+      """
+        import RestrictedSelectable.~
+        case class Person2(name: String, age: Int):
+          def greet(): String = s"Hello, I'm $name"
+
+          def getAge(): Int = age
+
+          def combine(other: Person2): Person2 =
+            Person2(s"${this.name} & ${other.name}", this.age + other.age)
+
+        // Force the user to declare methods they are going to use - not very nice.
+        extension [D <: Tuple](p: Person2 ~ D)
+          def greet(): String ~ D = p.stageCall[String, D]("greet", EmptyTuple)
+          def getAge(): Int ~ D = p.stageCall[Int, D]("getAge", EmptyTuple)
+          def combine[D2 <: Tuple](other: Person2 ~ D2): Person2 ~ (Tuple.Concat[D, D2]) =
+            p.stageCall[Person2, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+
+
+        val person1 = Person2("Alice", 30)
+        val person2 = Person2("Bob", 25)
+        val ret = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+          val age1 = refs._1.combine(refs._1)
+          (age1, refs._2)
+        )
+      """)
+      assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+  }
