@@ -16,10 +16,10 @@ import scala.annotation.implicitNotFound
 object RestrictedSelectable:
 
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, elem, Tuple1[index]]]
+    case (elem, index) => Restricted[elem, Tuple1[index]]]
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
-    case Restricted[a, b, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
+    case Restricted[_, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
     case EmptyTuple => EmptyTuple
   }
 
@@ -27,33 +27,30 @@ object RestrictedSelectable:
     Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
 
   type ConstructRestricted[T] = T match
-    case (a, d) => Restricted[a, a, d]
+    case (a, d) => Restricted[a, d]
 
   type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[a, b, d] => d
+    case Restricted[_, d] => d
 
   type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
   type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
 
-  type StripRestricted[T] = T match
-    case Restricted[a, b, d] => b
-
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, b, d] *: tail => b *: ExtractResultTypes[tail]
+    case Restricted[a, d] *: tail => a *: ExtractResultTypes[tail]
   type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, b, d] *: tail => d *: ExtractDependencyTypes[tail]
+    case Restricted[a, d] *: tail => d *: ExtractDependencyTypes[tail]
 
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
-      case (h: Restricted[_, _, _]) *: tail =>
+      case (h: Restricted[_, __]) *: tail =>
         h.execute() *:
           tupleExecute(tail)
 
-  trait Restricted[A, B, D <: Tuple] extends Selectable:
-    type Fields = NamedTuple.Map[NamedTuple.From[B], [T] =>> Restricted[A, T, D]]
+  trait Restricted[A, D <: Tuple] extends Selectable:
+    type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
     def selectDynamic(name: String) =
       println(s"field access $name")
       ???
@@ -62,12 +59,11 @@ object RestrictedSelectable:
       println(s"applying $name with args: $args")
       ???
 
-    def get: A
-    def execute(): B
+    def execute(): A
+
   object Restricted:
-    case class LinearRef[A, B, D <: Tuple](protected val wrapped: A, protected val fn: A => B) extends Restricted[A, B, D]:
-      def get: A = wrapped
-      def execute(): B = fn(wrapped)
+    case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
+      def execute(): A = fn()
 
   object LinearFn:
     def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]
@@ -79,7 +75,7 @@ object RestrictedSelectable:
     (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
     (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT])
     (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT]) =
-      val argsRefs = args.toArray.map(a => Restricted.LinearRef(Some(a), x => x))
+      val argsRefs = args.toArray.map(a => Restricted.LinearRef(() => a))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
       val exec = fns(refsTuple)
       println(exec)

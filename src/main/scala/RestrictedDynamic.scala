@@ -14,10 +14,10 @@ import scala.annotation.implicitNotFound
 object RestrictedDynamic:
 
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, elem, Tuple1[index]]]
+    case (elem, index) => Restricted[elem, Tuple1[index]]]
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
-    case Restricted[a, b, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
+    case Restricted[_, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
     case EmptyTuple => EmptyTuple
   }
 
@@ -25,26 +25,23 @@ object RestrictedDynamic:
     Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
 
   type ConstructRestricted[T] = T match
-    case (a, d) => Restricted[a, a, d]
+    case (a, d) => Restricted[a, d]
 
   type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[a, b, d] => d
+    case Restricted[_, d] => d
 
   type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
   type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
 
-  type StripRestricted[T] = T match
-    case Restricted[a, b, d] => b
-
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, b, d] *: tail => b *: ExtractResultTypes[tail]
+    case Restricted[a, _] *: tail => a *: ExtractResultTypes[tail]
   type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, b, d] *: tail => d *: ExtractDependencyTypes[tail]
+    case Restricted[_, d] *: tail => d *: ExtractDependencyTypes[tail]
 
   type CollateDeps[A, D <: Tuple] <: Tuple = A match
-    case Restricted[a, b, d] =>
+    case Restricted[a, d] =>
       Tuple.Concat[d, D]
     case _ =>
       D
@@ -56,20 +53,20 @@ object RestrictedDynamic:
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
-      case (h: Restricted[_, _, _]) *: tail =>
+      case (h: Restricted[_, _]) *: tail =>
         h.execute() *:
           tupleExecute(tail)
 
-  trait Restricted[A, B, D <: Tuple] extends Dynamic:
-    def stageField(name: String): Restricted[A, B, D]
-    def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, B, D2]
+  trait Restricted[A, D <: Tuple] extends Dynamic:
+    def stageField(name: String): Restricted[A, D]
+    def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2]
 
-    def selectDynamic(name: String): Restricted[A, B, D] = {
+    def selectDynamic(name: String): Restricted[A, D] = {
       println(s"field access $name")
       stageField(name)
     }
 
-    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, B, CollateDeps[T1, D]] = {
+    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
       println(s"applying $method with arg: $arg")
       stageCall(method, Tuple1(arg))
     }
@@ -80,23 +77,22 @@ object RestrictedDynamic:
     //    stageCall(method, (arg1, arg2))
     //  }
 
-    //  def get: A
-    def execute(): B
+    def execute(): A
 
   object Restricted:
-    case class LinearRef[A, B, D <: Tuple](protected val fn: () => B) extends Restricted[A, B, D]:
-      def execute(): B = fn()
+    case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
+      def execute(): A = fn()
 
-      override def stageField(name: String): Restricted[A, B, D] =
+      override def stageField(name: String): Restricted[A, D] =
         LinearRef(() =>
           println(s"inside fn: staged field access $name")
           // should be equivalent to fn().name
           ???
         )
 
-      override def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, B, D2] = {
+      override def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2] = {
         println(s"staging call $name with args: $args")
-        LinearRef[A, B, D2](() =>
+        LinearRef[A, D2](() =>
           println(s"inside fn: staged call $name with args: $args")
           // should be equivalent to fn().name(args)
           ???
