@@ -264,7 +264,7 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  wrapped in the linear type, for example `Int`, users could pass the term to an outside function that takes `Int`. 
  Since arguments are wrapped in a custom `Restricted` type, in order to extract the underlying term to pass it to a
  (potentially side-effectful) external function, the user would need to call a `.unsafe` unwrap function (which is by 
- definition is an unsafe operation).
+ definition is an unsafe operation, so the user is knowingly circumventing the linearity check).
  Also, one of the claims is that users can write the bodies of linear functions in the same way they write non-linear
  functions. Using `map` would require users to change their programming style significantly, however there is some 
  precedent in Scala for this style and the alternative just requires ahead-of-time declaration of methods, so it's a trade-off.
@@ -278,3 +278,7 @@ val combined = LinearFn.apply((alice, bob))(refs =>
 > 2. We can use a macro annotation to generate the extension methods automatically for a given type, however the ergonomics 
  are a bit weird: either the compiler generates them and the user needs to copy them manually into their codebase, or 
  we use ScalaMeta to apply and generate these extension methods ahead-of-time. 
+
+3. We do implicit conversions from plain values to `Restricted[T, EmptyTuple]` (for Selectable so far) so that users 
+ can pass plain values to methods that expect `Restricted` arguments. We also have implicit lifting conversions from 
+ `List[Restricted[T, D]]` to `Restricted[List[T], D]` and similar for other common collection types.

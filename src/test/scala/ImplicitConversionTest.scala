@@ -2,7 +2,7 @@ package linearfn
 
 import munit.FunSuite
 import scala.annotation.experimental
-import TestPersonOps.*
+import OpsExampleOps.*
 
 /**
  * Tests demonstrating the implicit conversion from plain values to Restricted types.
@@ -11,7 +11,7 @@ import TestPersonOps.*
 class ImplicitConversionTest extends FunSuite:
 
   test("implicit conversion allows passing plain String to extension method") {
-    val person = TestPerson("Alice", 30)
+    val person = OpsExample("Alice", "30")
 
     val result = RestrictedSelectable.LinearFn.apply(Tuple1(person))(refs =>
       // Can pass plain String - implicitly converted to Restricted[String, EmptyTuple]
@@ -23,8 +23,8 @@ class ImplicitConversionTest extends FunSuite:
   }
 
   test("implicit conversion allows mixing plain and Restricted values") {
-    val person1 = TestPerson("Alice", 30)
-    val person2 = TestPerson("Bob", 25)
+    val person1 = OpsExample("Alice", "30")
+    val person2 = OpsExample("Bob", "25")
 
     val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
       // refs._2 is already Restricted, but singleRestrictedProductArg accepts both Restricted and plain
@@ -36,7 +36,7 @@ class ImplicitConversionTest extends FunSuite:
   }
 
   test("plain values have EmptyTuple dependencies - don't affect type checking") {
-    val person = TestPerson("Alice", 30)
+    val person = OpsExample("Alice", "30")
 
     val result = RestrictedSelectable.LinearFn.apply(Tuple1(person))(refs =>
       // Plain "Alicia" gets converted to Restricted[String, EmptyTuple]

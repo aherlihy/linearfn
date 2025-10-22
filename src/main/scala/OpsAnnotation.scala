@@ -1,4 +1,4 @@
-src/main/scala/OpsAnnotation.scalapackage linearfn
+package linearfn
 
 import scala.annotation.MacroAnnotation
 import scala.quoted.*
