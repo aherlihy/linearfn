@@ -9,52 +9,9 @@ import Utils.*
  * Use Dynamic with quotes/splices to build AST directly.
  * No runtime reflection - the compiler type-checks field/method access.
  */
-object RestrictedDynamicQuotes:
-  type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, Tuple1[index]]]
+object RestrictedDynamicQuotes extends LinearFnBase:
 
-  type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
-    case Restricted[_, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
-    case EmptyTuple => EmptyTuple
-  }
-
-  type ToRestricted[AT <: Tuple, DT <: Tuple] =
-    Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
-
-  type ConstructRestricted[T] = T match
-    case (a, d) => Restricted[a, d]
-
-  type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[_, d] => d
-
-  type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
-  type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
-
-  type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
-    case EmptyTuple => EmptyTuple
-    case Restricted[a, _] *: tail => a *: ExtractResultTypes[tail]
-
-  type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
-    case EmptyTuple => EmptyTuple
-    case Restricted[_, d] *: tail => d *: ExtractDependencyTypes[tail]
-
-  type Collate[A, D <: Tuple] <: Tuple = A match
-    case Restricted[_, d] =>
-      Tuple.Concat[d, D]
-    case _ =>
-      D
-
-  type CollateAll[A <: Tuple, D <: Tuple] <: Tuple = A match
-    case EmptyTuple => D
-    case h *: t => CollateAll[t, Collate[h, D]]
-
-  def tupleExecute[T <: Tuple](t: T): Tuple =
-    t match
-      case EmptyTuple => EmptyTuple
-      case (h: Restricted[_, _]) *: tail =>
-        h.execute() *:
-          tupleExecute(tail)
-
+  // Implementation-specific Restricted trait
   trait Restricted[A, D <: Tuple] extends Dynamic:
     // Use inline with transparent return type for precise type inference
     transparent inline def selectDynamic(inline name: String): Any =
@@ -65,9 +22,17 @@ object RestrictedDynamicQuotes:
 
     def execute(): A
 
+  // Implementation-specific LinearRef
   object Restricted:
     case class LinearRef[A, D <: Tuple](val fn: () => A) extends Restricted[A, D]:
       def execute(): A = fn()
+
+  // Implement abstract methods from LinearFnBase
+  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
+    Restricted.LinearRef(fn)
+
+  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
+    r.execute()
 
   // Inline quote implementation for selectDynamic - builds Select AST directly
   private def selectDynamicQuote[A: Type, D <: Tuple: Type](
@@ -149,21 +114,4 @@ object RestrictedDynamicQuotes:
         }
     }
 
-  object LinearFn:
-    def apply[AT <: Tuple, RQT <: Tuple]
-    (args: AT)
-    (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Number of actual arguments must match the number of elements returned by fns")
-    ev0: Tuple.Size[AT] =:= Tuple.Size[RQT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?")
-    ev2: ExtractDependencyTypes[RQT] <:< InverseMapDeps[RQT])
-    (using @implicitNotFound("Failed to match restricted types")
-    ev3: RQT =:= ToRestricted[ExtractResultTypes[RQT], ExtractDependencyTypes[RQT]])
-    (using @implicitNotFound("Recursive definitions must be linear")
-    ev4: ExpectedResult[AT] <:< ActualResult[RQT]) =
-      val argsRefs = args.toArray.map(a => Restricted.LinearRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
-      val exec = fns(refsTuple)
-      println(exec)
-      tupleExecute(exec)
 end RestrictedDynamicQuotes
