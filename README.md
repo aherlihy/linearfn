@@ -280,5 +280,5 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  we use ScalaMeta to apply and generate these extension methods ahead-of-time. 
 
 3. We do implicit conversions from plain values to `Restricted[T, EmptyTuple]` (for Selectable so far) so that users 
- can pass plain values to methods that expect `Restricted` arguments. We also have implicit lifting conversions from 
- `List[Restricted[T, D]]` to `Restricted[List[T], D]` and similar for other common collection types.
+ can pass plain values to methods that expect `Restricted` arguments. We also convert from 
+ `List[Restricted[T, D]]` to `Restricted[List[T], D]` (also `Option` and `Vector`) on linear function return.

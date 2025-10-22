@@ -27,6 +27,10 @@ abstract class LinearFnBase:
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
     case Restricted[_, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
+    // Automatic lifting: handle nested containers
+    case List[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
+    case Option[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
+    case Vector[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
     case EmptyTuple => EmptyTuple
   }
 
@@ -34,10 +38,18 @@ abstract class LinearFnBase:
     Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
 
   type ConstructRestricted[T] = T match
+    // Automatic lifting: construct containers of Restricted types (must come BEFORE general case)
+    case (List[a], d) => List[Restricted[a, d]]
+    case (Option[a], d) => Option[Restricted[a, d]]
+    case (Vector[a], d) => Vector[Restricted[a, d]]
     case (a, d) => Restricted[a, d]
 
   type ExtractDependencies[D] <: Tuple = D match
     case Restricted[_, d] => d
+    // Automatic lifting: extract dependencies from containers
+    case List[Restricted[_, d]] => d
+    case Option[Restricted[_, d]] => d
+    case Vector[Restricted[_, d]] => d
 
   type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
   type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
@@ -45,10 +57,18 @@ abstract class LinearFnBase:
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
     case Restricted[a, d] *: tail => a *: ExtractResultTypes[tail]
+    // Automatic lifting: treat T[Restricted[a, d]] as Restricted[T[a], d]
+    case List[Restricted[a, d]] *: tail => List[a] *: ExtractResultTypes[tail]
+    case Option[Restricted[a, d]] *: tail => Option[a] *: ExtractResultTypes[tail]
+    case Vector[Restricted[a, d]] *: tail => Vector[a] *: ExtractResultTypes[tail]
 
   type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
     case Restricted[a, d] *: tail => d *: ExtractDependencyTypes[tail]
+    // Automatic lifting: extract dependencies from T[Restricted[a, d]]
+    case List[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
+    case Option[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
+    case Vector[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
 
   type CollateDeps[A, D <: Tuple] <: Tuple = A match
     case Restricted[a, d] => Tuple.Concat[d, D]
@@ -62,6 +82,28 @@ abstract class LinearFnBase:
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
+      // Automatic lifting: execute nested containers (must come BEFORE Restricted case)
+      case (h: List[_]) *: tail =>
+        val list = h.asInstanceOf[List[Any]]
+        val executed = list.map {
+          case r: Restricted[_, _] => executeRestricted(r)
+          case other => other
+        }
+        executed *: tupleExecute(tail)
+      case (h: Option[_]) *: tail =>
+        val opt = h.asInstanceOf[Option[Any]]
+        val executed = opt.map {
+          case r: Restricted[_, _] => executeRestricted(r)
+          case other => other
+        }
+        executed *: tupleExecute(tail)
+      case (h: Vector[_]) *: tail =>
+        val vec = h.asInstanceOf[Vector[Any]]
+        val executed = vec.map {
+          case r: Restricted[_, _] => executeRestricted(r)
+          case other => other
+        }
+        executed *: tupleExecute(tail)
       case (h: Restricted[_, _]) *: tail =>
         executeRestricted(h) *: tupleExecute(tail)
 
