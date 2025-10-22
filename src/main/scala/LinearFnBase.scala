@@ -21,54 +21,65 @@ abstract class LinearFnBase:
   // Execute a Restricted value
   protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A
 
+  // Helper match type to extract inner type and dependencies from potentially nested containers
+  // Returns (innermost_type, dependencies)
+  // This is the PRIMARY place to add new container types for lifting support
+  type LiftInnerType[T] = T match
+    case Restricted[a, d] => (a, d)
+    case List[inner] => LiftInnerType[inner] match
+      case (a, d) => (List[a], d)
+    case Option[inner] => LiftInnerType[inner] match
+      case (a, d) => (Option[a], d)
+    case Vector[inner] => LiftInnerType[inner] match
+      case (a, d) => (Vector[a], d)
+
   // Common match types
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
     case (elem, index) => Restricted[elem, Tuple1[index]]]
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
-    case Restricted[_, d] *: t => HasDuplicate[d] *: InverseMapDeps[t]
-    // Automatic lifting: handle nested containers
-    case List[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
-    case Option[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
-    case Vector[Restricted[_, d]] *: t => HasDuplicate[d] *: InverseMapDeps[t]
     case EmptyTuple => EmptyTuple
+    case h *: t => LiftInnerType[h] match
+      case (_, d) => HasDuplicate[d] *: InverseMapDeps[t]
   }
 
   type ToRestricted[AT <: Tuple, DT <: Tuple] =
     Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
 
+  // Recursive helper to reconstruct nested Restricted types
+  type ReconstructRestricted[A, D <: Tuple] = A match
+    case List[inner] => List[ReconstructRestricted[inner, D]]
+    case Option[inner] => Option[ReconstructRestricted[inner, D]]
+    case Vector[inner] => Vector[ReconstructRestricted[inner, D]]
+    case _ => Restricted[A, D]
+
   type ConstructRestricted[T] = T match
     // Automatic lifting: construct containers of Restricted types (must come BEFORE general case)
-    case (List[a], d) => List[Restricted[a, d]]
-    case (Option[a], d) => Option[Restricted[a, d]]
-    case (Vector[a], d) => Vector[Restricted[a, d]]
+    case (List[a], d) => ReconstructRestricted[List[a], d]
+    case (Option[a], d) => ReconstructRestricted[Option[a], d]
+    case (Vector[a], d) => ReconstructRestricted[Vector[a], d]
     case (a, d) => Restricted[a, d]
 
+  // Recursively extract dependencies from nested containers
+  // Note: This uses a different recursion pattern than LiftInnerType
   type ExtractDependencies[D] <: Tuple = D match
     case Restricted[_, d] => d
-    // Automatic lifting: extract dependencies from containers
-    case List[Restricted[_, d]] => d
-    case Option[Restricted[_, d]] => d
-    case Vector[Restricted[_, d]] => d
+    case List[inner] => ExtractDependencies[inner]
+    case Option[inner] => ExtractDependencies[inner]
+    case Vector[inner] => ExtractDependencies[inner]
 
   type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
   type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
 
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, d] *: tail => a *: ExtractResultTypes[tail]
-    // Automatic lifting: treat T[Restricted[a, d]] as Restricted[T[a], d]
-    case List[Restricted[a, d]] *: tail => List[a] *: ExtractResultTypes[tail]
-    case Option[Restricted[a, d]] *: tail => Option[a] *: ExtractResultTypes[tail]
-    case Vector[Restricted[a, d]] *: tail => Vector[a] *: ExtractResultTypes[tail]
+    case h *: tail => LiftInnerType[h] match
+      case (a, _) => a *: ExtractResultTypes[tail]
 
   type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case Restricted[a, d] *: tail => d *: ExtractDependencyTypes[tail]
-    // Automatic lifting: extract dependencies from T[Restricted[a, d]]
-    case List[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
-    case Option[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
-    case Vector[Restricted[a, d]] *: tail => d *: ExtractDependencyTypes[tail]
+    case h *: tail => LiftInnerType[h] match
+      case (_, d) => d *: ExtractDependencyTypes[tail]
 
   type CollateDeps[A, D <: Tuple] <: Tuple = A match
     case Restricted[a, d] => Tuple.Concat[d, D]
@@ -78,34 +89,20 @@ abstract class LinearFnBase:
     case EmptyTuple => D
     case h *: t => CollateAllDeps[t, CollateDeps[h, D]]
 
+  // Helper to recursively execute Restricted values inside nested containers
+  private def executeNested(value: Any): Any = value match
+    // Check for containers BEFORE Restricted to handle nested cases
+    case list: List[_] => list.map(executeNested)
+    case opt: Option[_] => opt.map(executeNested)
+    case vec: Vector[_] => vec.map(executeNested)
+    case r: Restricted[_, _] => executeRestricted(r)
+    case other => other
+
   // Common tupleExecute implementation
   def tupleExecute[T <: Tuple](t: T): Tuple =
     t match
       case EmptyTuple => EmptyTuple
-      // Automatic lifting: execute nested containers (must come BEFORE Restricted case)
-      case (h: List[_]) *: tail =>
-        val list = h.asInstanceOf[List[Any]]
-        val executed = list.map {
-          case r: Restricted[_, _] => executeRestricted(r)
-          case other => other
-        }
-        executed *: tupleExecute(tail)
-      case (h: Option[_]) *: tail =>
-        val opt = h.asInstanceOf[Option[Any]]
-        val executed = opt.map {
-          case r: Restricted[_, _] => executeRestricted(r)
-          case other => other
-        }
-        executed *: tupleExecute(tail)
-      case (h: Vector[_]) *: tail =>
-        val vec = h.asInstanceOf[Vector[Any]]
-        val executed = vec.map {
-          case r: Restricted[_, _] => executeRestricted(r)
-          case other => other
-        }
-        executed *: tupleExecute(tail)
-      case (h: Restricted[_, _]) *: tail =>
-        executeRestricted(h) *: tupleExecute(tail)
+      case h *: tail => executeNested(h) *: tupleExecute(tail)
 
   // Common LinearFn.apply implementation
   object LinearFn:

@@ -118,3 +118,67 @@ class LiftingTest extends FunSuite:
     assertEquals(result._1, List(ex1))
     assertEquals(result._2, Some(ex2))
   }
+
+  test("nested List[List[Restricted[A, D]]] is automatically lifted") {
+    val ex1 = OpsExample("Alice", "30")
+    val ex2 = OpsExample("Bob", "25")
+
+    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      // Create a nested list structure
+      val innerList = List(refs._1)
+      val nestedList = List(innerList)
+      (nestedList, refs._2)
+    )
+
+    assertEquals(result._1, List(List(ex1)))
+    assertEquals(result._2, ex2)
+  }
+
+  test("nested List[Option[Restricted[A, D]]] is automatically lifted") {
+    val ex1 = OpsExample("Alice", "30")
+
+    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+      // Create nested List[Option[...]]
+      val opt = Option(refs._1)
+      val listOfOpt = List(opt)
+      Tuple1(listOfOpt)
+    )
+
+    assertEquals(result._1, List(Some(ex1)))
+  }
+
+  test("deeply nested List[List[List[Restricted[A, D]]]] is automatically lifted") {
+    val ex1 = OpsExample("Alice", "30")
+
+    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+      // Create deeply nested structure
+      val inner = List(refs._1)
+      val middle = List(inner)
+      val outer = List(middle)
+      Tuple1(outer)
+    )
+
+    assertEquals(result._1, List(List(List(ex1))))
+  }
+
+  test("implicit conversion does not bypass lifting - dependencies properly tracked") {
+    // This test verifies that List[Restricted[A, D]] is lifted to Restricted[List[A], D]
+    // and not implicitly converted to Restricted[List[Restricted[A, D]], EmptyTuple]
+    val ex1 = OpsExample("Alice", "30")
+    val ex2 = OpsExample("Bob", "25")
+
+    // If implicit conversion bypassed lifting, returning the list twice would work
+    // (because EmptyTuple dependency wouldn't conflict)
+    // But with proper lifting, the list has dependency Tuple1[0], so this should fail
+    val obtained = compileErrors("""
+      val ex1 = OpsExample("Alice", "30")
+      val ex2 = OpsExample("Bob", "25")
+      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+        val list = List(refs._1)
+        (list, list)  // Trying to return the same list twice
+      )
+    """)
+    // If lifting works correctly, both list references have dependency Tuple1[0]
+    // and returning them both violates linearity
+    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+  }
