@@ -10,9 +10,7 @@ import scala.reflect.Selectable.reflectiveSelectable
 /**
  * Use Selectable to proxy field/method access.
  * TODO: for applyDynamic to work, seems the user needs to manually declare methods somewhere, not sure if there's a way to do that without leaking Restricted.
- * Good because type safe, but doesn't work out of the box with non-product types.
- * TODO: add an implicit conversion wrapper from Int to something that can use Fields?
- * Ideally should be able to work with any type.
+ * Good because type safe, but doesn't work out of the box with non-product types, and requires users to define functions.
  */
 object RestrictedSelectable extends LinearFnBase:
 
@@ -73,6 +71,11 @@ object RestrictedSelectable extends LinearFnBase:
           method.invoke(obj, executedArgs*).asInstanceOf[R]
         )
       }
+
+    // Implicit conversion to allow plain values where Restricted is expected
+    given [S]: Conversion[S, Restricted[S, EmptyTuple]] with
+      def apply(value: S): Restricted[S, EmptyTuple] =
+        LinearRef[S, EmptyTuple](() => value)
 
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =

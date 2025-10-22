@@ -13,6 +13,7 @@ because it's more immediately useful for our use cases.
 ## Usage
 
 ```scala
+@ops // needed for Selectable-based implementation
 case class Person(name: String, age: Int):
   def greet(): String = s"Hello, I'm $name"
   def combine(other: Person): Person =
@@ -59,18 +60,19 @@ This library provides three implementations of linear functions, each with diffe
 
 Uses Scala 3's `Selectable` trait with structural types.
 
+- **Linear** - linearity is enforced at the type-level. There are two drawbacks: (1) arguments passed to 
+    linear functions must be product types, and (2) users must define extension methods for each field/method used in the body of
+    the linear function, however this allows for more flexibility since arbitrary arguments can be marked as @unrestricted.
 - **Type safe** - field/method names checked at compile time
-- **Only works with product types** (case classes, tuples, etc.)
-- **Requires users to define extension methods** - leaks the abstraction
 
 ```scala
-import RestrictedSelectable.{LinearFn, ~}
+import RestrictedSelectable.{LinearFn, Restricted}
 
-// Users must define extension methods for each field/method
+// Users must define extension methods for each field/method.
 extension [D <: Tuple](p: Person ~ D)
-  def name: String ~ D = p.stageField("name")
-  def age: Int ~ D = p.stageField("age")
-  def greet(): String ~ D = p.stageCall[String, D]("greet", EmptyTuple)
+  def name: Restricted[String, D] = p.stageField("name")
+  def age: Restricted[Int, D] = p.stageField("age")
+  def greet(): Restricted[String, D] = p.stageCall[String, D]("greet", EmptyTuple)
 
 val result = LinearFn.apply((alice, bob))(refs =>
   val name = refs._1.name        // Compile-time checked
@@ -81,11 +83,116 @@ val result = LinearFn.apply((alice, bob))(refs =>
 
 **TODO:** Confirm whether this can be made nicer to avoid leaking the abstraction.
 
+#### Automatic Extension Generation with `@ops`
+
+To simplify the process of defining extension methods, the library provides an `@ops` annotation that automatically generates extension methods for all methods in a class. This uses an sbt source generator that runs during compilation.
+
+**How it works:**
+
+1. Annotate your class with `@ops`:
+```scala
+@ops
+case class TestPerson(name: String, age: Int):
+  def greet(): String = s"Hello, I'm $name"
+  def combine(other: TestPerson): TestPerson =
+    TestPerson(s"${this.name} & ${other.name}", this.age + other.age)
+  def withName(newName: String): TestPerson =
+    TestPerson(newName, age)
+```
+
+2. During compilation, the sbt source generator automatically creates extension methods in `target/scala-3.7.3/src_managed/main/TestPersonOps.scala`:
+```scala
+object TestPersonOps:
+  extension [D <: Tuple](p: RestrictedSelectable.Restricted[TestPerson, D])
+    def greet(): RestrictedSelectable.Restricted[String, D] =
+      p.stageCall[String, D]("greet", EmptyTuple)
+
+    def combine[D1 <: Tuple](other: RestrictedSelectable.Restricted[TestPerson, D1]):
+      RestrictedSelectable.Restricted[TestPerson, Tuple.Concat[D1, D]] =
+      p.stageCall[TestPerson, Tuple.Concat[D1, D]]("combine", Tuple1(other))
+
+    def withName[D1 <: Tuple](newName: RestrictedSelectable.Restricted[String, D1]):
+      RestrictedSelectable.Restricted[TestPerson, Tuple.Concat[D1, D]] =
+      p.stageCall[TestPerson, Tuple.Concat[D1, D]]("withName", Tuple1(newName))
+```
+
+3. Import the generated extensions in your code:
+```scala
+import TestPersonOps.*
+
+val result = LinearFn.apply((person1, person2))(refs =>
+  val combined = refs._1.combine(refs._2)
+  (combined, combined)
+)
+```
+
+**Dependency Tracking:**
+
+All method parameters are tracked by default. Each parameter accepts `Restricted[T, D_n]` types, and their dependencies are concatenated in the result type:
+
+```scala
+def method(arg1: T1, arg2: T2): Result
+// Generates:
+def method[D1 <: Tuple, D2 <: Tuple](
+  arg1: Restricted[T1, D1],
+  arg2: Restricted[T2, D2]
+): Restricted[Result, Tuple.Concat[D1, Tuple.Concat[D2, D]]]
+```
+
+**Implicit Conversion for Plain Values:**
+
+Plain values are automatically converted to `Restricted[T, EmptyTuple]`, allowing you to pass both tracked and untracked values:
+
+```scala
+val result = LinearFn.apply(Tuple1(person))(refs =>
+  // "Alicia" is implicitly converted to Restricted[String, EmptyTuple]
+  val updated = refs._1.withName("Alicia")
+  Tuple1(updated)
+)
+```
+
+Since `Tuple.Concat[EmptyTuple, D] = D`, plain values don't affect the dependency type.
+
+**The `@unrestricted` Annotation:**
+
+Mark parameters with `@unrestricted` to exclude them from dependency tracking:
+
+```scala
+@ops
+case class Example(value: String):
+  def combine(tracked: Example, @unrestricted config: String): Example =
+    Example(s"$value + ${tracked.value} (config: $config)")
+```
+
+Generates:
+```scala
+def combine[D1 <: Tuple, D2 <: Tuple](
+  tracked: Restricted[Example, D1],
+  config: Restricted[String, D2]
+): Restricted[Example, Tuple.Concat[D1, D]]  // D2 excluded!
+```
+
+This allows `@unrestricted` parameters to be:
+- Returned separately without violating linearity
+- Used multiple times in the same function
+- Passed as plain values without affecting type checking
+
+**Generated Files:**
+
+The generator creates one file per `@ops`-annotated class:
+- **Location**: `target/scala-3.7.3/src_managed/main/`
+- **Naming**: `{ClassName}Extensions.scala`
+- **Cleanup**: Automatically removed by `sbt clean`
+
+To avoid naming conflicts, extensions are wrapped in class-specific objects (e.g., `TestPersonOps`, `ExampleOps`).
+
 ### 2. RestrictedDynamic
 
-Uses Scala's `Dynamic` trait for runtime method dispatch.
+Uses Scala's `Dynamic` trait for runtime method dispatch. 
 
-- **Not type safe** - field/method names are resolved at runtime
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is
+  considered a "use" of both arguments.
+- **Not type safe** - field/method names are resolved at runtime (so useless but works for demonstration purposes)
 - **Works with all types** - no restrictions on input types or requirement that users annotate their classes.
 
 ```scala
@@ -101,6 +208,8 @@ val result = LinearFn.apply((alice, bob))(refs =>
 
 Uses `Dynamic` trait with Scala 3 macros for compile-time type checking.
 
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is 
+ considered a "use" of both arguments. 
 - **Type safe** - field/method existence verified at compile time via macros
 - **Works with all types** - no restrictions on input types
 - **Requires macros** - more complex implementation, requires reflection.
@@ -125,7 +234,10 @@ val combined = LinearFn.apply((alice, bob))(refs =>
 
 Uses `Dynamic` trait with Scala 3 quotes & splices for AST inspection + compile-time type checking.
 
-- **Type safe** - field/method existence verified at compile time via macros
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is
+  considered a "use" of both arguments.
+- **Type safe** - field/method existence verified at compile time via quotes + splices, although right now it doesn't 
+ work for overloaded methods due to Select.unique, but that may be fixable.
 - **Works with all types** - no restrictions on input types
 - **Requires quotes** - more complex implementation.
 
@@ -146,9 +258,23 @@ val combined = LinearFn.apply((alice, bob))(refs =>
 ```
 
 ## FAQ
-1. Why don't we use `map` or other "graded applicative functors"?
- > Haskell doesn't have to worry about side effects. If we use a `map` function that exposes a term of the type 
- wrapped in the linear type, for example `Int`, users could pass terms to outside functions that accept the `Int` type. 
- Since arguments are wrapped in a custom `Restricted` type, in order to extract the underlying type to pass it to an
- (potentially side-effectful) external function, the user would need to call `.unwrap` which is by definition an unsafe 
- operation.
+1. Why don't we use `map`/graded applicative functors?
+ 
+> Haskell doesn't have to worry about side effects. If we use a `map` function that exposes a term of the type 
+ wrapped in the linear type, for example `Int`, users could pass the term to an outside function that takes `Int`. 
+ Since arguments are wrapped in a custom `Restricted` type, in order to extract the underlying term to pass it to a
+ (potentially side-effectful) external function, the user would need to call a `.unsafe` unwrap function (which is by 
+ definition is an unsafe operation).
+ Also, one of the claims is that users can write the bodies of linear functions in the same way they write non-linear
+ functions. Using `map` would require users to change their programming style significantly, however there is some 
+ precedent in Scala for this style and the alternative just requires ahead-of-time declaration of methods, so it's a trade-off.
+
+2. For Selectable, `Fields` works out-of-the-box, but methods are problematic. 
+    Alternatives for Selectable requiring users to declare methods ahead-of-time:
+
+> 1. If the user could define structural refinements that could be manually applied to the Restricted type, that 
+ would mean that `applyDynamic` would work for those functions, which would make things much easier.
+
+> 2. We can use a macro annotation to generate the extension methods automatically for a given type, however the ergonomics 
+ are a bit weird: either the compiler generates them and the user needs to copy them manually into their codebase, or 
+ we use ScalaMeta to apply and generate these extension methods ahead-of-time. 
