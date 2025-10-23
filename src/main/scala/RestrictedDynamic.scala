@@ -13,16 +13,16 @@ import scala.annotation.implicitNotFound
 object RestrictedDynamic extends LinearFnBase:
 
   // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple] extends Dynamic:
-    def stageField(name: String): Restricted[A, D]
-    def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2]
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
+    def stageField(name: String): Restricted[A, D, C]
+    def stageCall[D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[A, D2, C2]
 
-    def selectDynamic(name: String): Restricted[A, D] = {
+    def selectDynamic(name: String): Restricted[A, D, C] = {
       println(s"field access $name")
       stageField(name)
     }
 
-    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
+    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D], C] = {
       println(s"applying $method with arg: $arg")
       stageCall(method, Tuple1(arg))
     }
@@ -37,19 +37,19 @@ object RestrictedDynamic extends LinearFnBase:
 
   // Implementation-specific LinearRef
   object Restricted:
-    case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
+    case class LinearRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
-      override def stageField(name: String): Restricted[A, D] =
+      override def stageField(name: String): Restricted[A, D, C] =
         LinearRef(() =>
           println(s"inside fn: staged field access $name")
           // should be equivalent to fn().name
           ???
         )
 
-      override def stageCall[D2 <: Tuple](name: String, args: Tuple): Restricted[A, D2] = {
+      override def stageCall[D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[A, D2, C2] = {
         println(s"staging call $name with args: $args")
-        LinearRef[A, D2](() =>
+        LinearRef[A, D2, C2](() =>
           println(s"inside fn: staged call $name with args: $args")
           // should be equivalent to fn().name(args)
           ???
@@ -57,8 +57,8 @@ object RestrictedDynamic extends LinearFnBase:
       }
 
   // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
+  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
 
-  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
     r.execute()

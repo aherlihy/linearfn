@@ -25,7 +25,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
       val num = 42
       val actual = 5
       val result = RestrictedSelectable.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedSelectable.Restricted[Int, (0, 0)] = RestrictedSelectable.Restricted.LinearRef[Int, (0, 0)](() => actual)
+        val tmp: RestrictedSelectable.Restricted[Int, (0, 0), EmptyTuple] = RestrictedSelectable.Restricted.LinearRef[Int, (0, 0), EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -38,7 +38,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
       val num = 42
       val actual = 5
       val result = RestrictedSelectable.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedSelectable.Restricted[Int, Tuple1[0]] = RestrictedSelectable.Restricted.LinearRef[Int, Tuple1[0]](() => actual)
+        val tmp: RestrictedSelectable.Restricted[Int, Tuple1[0], EmptyTuple] = RestrictedSelectable.Restricted.LinearRef[Int, Tuple1[0], EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -94,9 +94,9 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
       def combine(other: Person): Person =
         Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-    extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-      def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
-        p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+    extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+      def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
+        p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
 
     val person1 = Person("Alice", 30)
     val person2 = Person("Bob", 25)
@@ -113,9 +113,9 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         def combine(other: Person): Person =
           Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-      extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-        def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
-          p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+      extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+        def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
+          p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
 
       val person1 = Person("Alice", 30)
       val person2 = Person("Bob", 25)
@@ -133,9 +133,9 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         def combine(other: Person): Person =
           Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-      extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-        def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
-          p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+      extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+        def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
+          p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
 
       val person1 = Person("Alice", 30)
       val person2 = Person("Bob", 25)

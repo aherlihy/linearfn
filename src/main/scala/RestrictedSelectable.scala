@@ -15,30 +15,32 @@ import scala.reflect.Selectable.reflectiveSelectable
 object RestrictedSelectable extends LinearFnBase:
 
   // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple] extends Selectable:
-    type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
-    def stageField(name: String): Restricted[A, D]
-    def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2]
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends Selectable:
+    type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D, C]]
+    def stageField(name: String): Restricted[A, D, C]
+    def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2]
 
     def selectDynamic(name: String) = {
       println(s"field access $name")
       stageField(name)
     }
 
-    def applyDynamic(method: String)(): Restricted[A, D] = {
+    // TODO: for now unused
+    def applyDynamic(method: String)(): Restricted[A, D, C] = {
       println(s"applying $method with no args")
-      stageCall[A, D](method, EmptyTuple)
+      stageCall[A, D, C](method, EmptyTuple)
     }
 
-    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
+    // TODO: for now unused
+    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D], CollateConsumed[T1, C]] = { // TODO:
       println(s"applying $method with arg: $arg")
-      stageCall[A, CollateDeps[T1, D]](method, Tuple1(arg))
+      stageCall[A, CollateDeps[T1, D], CollateConsumed[T1, C]](method, Tuple1(arg))
     }
 
     def execute(): A
 
   object Restricted:
-    case class LinearRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
+    case class LinearRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
       override def stageField(name: String) =
@@ -50,15 +52,15 @@ object RestrictedSelectable extends LinearFnBase:
           field.get(obj).asInstanceOf[A]
         )
 
-      override def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2] = {
+      override def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2] = {
         println(s"staging call $name with args: $args")
-        LinearRef[R, D2](() =>
+        LinearRef[R, D2, C2](() =>
           println(s"inside fn: staged call $name with args: $args")
           val obj = fn()
 
           // Execute any Restricted arguments to get their actual values
           val executedArgs = args.productIterator.map {
-            case r: Restricted[_, _] => r.execute()
+            case r: Restricted[_, _, _] => r.execute()
             case other => other
           }.toSeq
 
@@ -86,9 +88,9 @@ object RestrictedSelectable extends LinearFnBase:
       }
 
     // Implicit conversion to allow plain values where Restricted is expected
-    given [S]: Conversion[S, Restricted[S, EmptyTuple]] with
-      def apply(value: S): Restricted[S, EmptyTuple] =
-        LinearRef[S, EmptyTuple](() => value)
+    given [S]: Conversion[S, Restricted[S, EmptyTuple, EmptyTuple]] with
+      def apply(value: S): Restricted[S, EmptyTuple, EmptyTuple] =
+        LinearRef[S, EmptyTuple, EmptyTuple](() => value)
 
     /**
      * Type class for user-defined liftable containers.
@@ -102,7 +104,7 @@ object RestrictedSelectable extends LinearFnBase:
 
     /**
      * Extension method to explicitly lift user-defined containers.
-     * Transforms F[Restricted[A, D]] into Restricted[F[A], D].
+     * Transforms F[Restricted[A, D, C]] into Restricted[F[A], D, C].
      *
      * Usage:
      * {{{
@@ -115,13 +117,13 @@ object RestrictedSelectable extends LinearFnBase:
      * )
      * }}}
      */
-    extension [F[_], A, D <: Tuple](container: F[Restricted[A, D]])(using ev: Liftable[F])
-      def lift: Restricted[F[A], D] =
-        LinearRef[F[A], D](() => ev.map(container)(_.execute()))
+    extension [F[_], A, D <: Tuple, C <: Tuple](container: F[Restricted[A, D, C]])(using ev: Liftable[F])
+      def lift: Restricted[F[A], D, C] =
+        LinearRef[F[A], D, C](() => ev.map(container)(_.execute()))
 
   // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
+  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
 
-  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
     r.execute()

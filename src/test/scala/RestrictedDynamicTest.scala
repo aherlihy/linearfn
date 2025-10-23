@@ -25,7 +25,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
       val num = 42
       val actual = 5
       val result = RestrictedDynamic.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamic.Restricted[Int, (0, 0)] = RestrictedDynamic.Restricted.LinearRef[Int, (0, 0)](() => actual)
+        val tmp: RestrictedDynamic.Restricted[Int, (0, 0), EmptyTuple] = RestrictedDynamic.Restricted.LinearRef[Int, (0, 0), EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -38,7 +38,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
       val num = 42
       val actual = 5
       val result = RestrictedDynamic.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamic.Restricted[Int, Tuple1[0]] = RestrictedDynamic.Restricted.LinearRef[Int, Tuple1[0]](() => actual)
+        val tmp: RestrictedDynamic.Restricted[Int, Tuple1[0], EmptyTuple] = RestrictedDynamic.Restricted.LinearRef[Int, Tuple1[0], EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)

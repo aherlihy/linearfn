@@ -14,24 +14,24 @@ import Utils.*
 object RestrictedDynamicMacros extends LinearFnBase:
 
   // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple] extends Dynamic:
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
     // Macro-based implementations for compile-time verification
     transparent inline def selectDynamic(inline name: String): Any =
-      ${ RestrictedMacros.selectDynamicImpl[A, D]('this, 'name) }
+      ${ RestrictedMacros.selectDynamicImpl[A, D, C]('this, 'name) }
 
     transparent inline def applyDynamic(inline name: String)(inline args: Any*): Any =
-      ${ RestrictedMacros.applyDynamicImpl[A, D]('this, 'name, 'args) }
+      ${ RestrictedMacros.applyDynamicImpl[A, D, C]('this, 'name, 'args) }
 
     def execute(): A
 
   // Implementation-specific LinearRef
   object Restricted:
-    case class LinearRef[A, D <: Tuple](val fn: () => A) extends Restricted[A, D]:
+    case class LinearRef[A, D <: Tuple, C <: Tuple](val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
   // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
+  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
 
-  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
     r.execute()

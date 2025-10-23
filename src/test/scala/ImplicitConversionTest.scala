@@ -54,12 +54,12 @@ class ImplicitConversionTest extends FunSuite:
       def greetWith(prefix: String, suffix: String): String =
         s"$prefix $name $suffix"
 
-    extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-      def greetWith[D1 <: Tuple, D2 <: Tuple](
-        prefix: RestrictedSelectable.Restricted[String, D1],
-        suffix: RestrictedSelectable.Restricted[String, D2]
-      ): RestrictedSelectable.Restricted[String, Tuple.Concat[D1, Tuple.Concat[D2, D]]] =
-        p.stageCall[String, Tuple.Concat[D1, Tuple.Concat[D2, D]]]("greetWith", (prefix, suffix))
+    extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+      def greetWith[D1 <: Tuple, C1 <: Tuple, D2 <: Tuple, C2 <: Tuple](
+        prefix: RestrictedSelectable.Restricted[String, D1, C1],
+        suffix: RestrictedSelectable.Restricted[String, D2, C2]
+      ): RestrictedSelectable.Restricted[String, Tuple.Concat[D1, Tuple.Concat[D2, D]], C] =
+        p.stageCall[String, Tuple.Concat[D1, Tuple.Concat[D2, D]], C]("greetWith", (prefix, suffix))
 
     val person = Person("Alice")
 

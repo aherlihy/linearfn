@@ -4,8 +4,8 @@ import scala.quoted.*
 
 object RestrictedMacros:
   import RestrictedDynamicMacros.Restricted
-  def selectDynamicImpl[A: Type, D <: Tuple: Type](
-    self: Expr[Restricted[A, D]],
+  def selectDynamicImpl[A: Type, D <: Tuple: Type, C <: Tuple: Type](
+    self: Expr[Restricted[A, D, C]],
     name: Expr[String]
   )(using Quotes): Expr[Any] =
     import quotes.reflect.*
@@ -35,17 +35,17 @@ object RestrictedMacros:
           case '[fieldType] =>
             // Generate code that creates a new Restricted wrapping the field access
             '{
-              val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D]]
-              Restricted.LinearRef[fieldType, D](() => {
+              val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D, C]]
+              Restricted.LinearRef[fieldType, D, C](() => {
                 val result = linearRef.fn()
                 // Use reflection to call the accessor method
                 val method = result.getClass.getMethod($name)
                 method.invoke(result).asInstanceOf[fieldType]
-              }): Restricted[fieldType, D]  // Upcast to trait
-            }.asExprOf[Restricted[fieldType, D]]
+              }): Restricted[fieldType, D, C]  // Upcast to trait
+            }.asExprOf[Restricted[fieldType, D, C]]
 
-  def applyDynamicImpl[A: Type, D <: Tuple: Type](
-    self: Expr[Restricted[A, D]],
+  def applyDynamicImpl[A: Type, D <: Tuple: Type, C <: Tuple: Type](
+    self: Expr[Restricted[A, D, C]],
     name: Expr[String],
     args: Expr[Seq[Any]]
   )(using Quotes): Expr[Any] =
@@ -86,7 +86,7 @@ object RestrictedMacros:
     var currentDeps = TypeRepr.of[D]
     for argExpr <- argExprs do
       argExpr.tpe.dealias.widen match {
-        case AppliedType(restrictedType, List(tArg, dArg))
+        case AppliedType(restrictedType, List(tArg, dArg, cArg))
           if restrictedType.typeSymbol.fullName == "linearfn.RestrictedDynamicMacros$.Restricted" =>
           // Build Tuple.Concat[dArg, currentDeps]
           val concatType = TypeRepr.of[Tuple.Concat].appliedTo(List(dArg, currentDeps))
@@ -104,14 +104,14 @@ object RestrictedMacros:
         returnType.asType match
           case '[rt] =>
             '{
-              Restricted.LinearRef[rt, newD & Tuple](() => {
-                val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D]]
+              Restricted.LinearRef[rt, newD & Tuple, EmptyTuple](() => {
+                val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D, C]]
                 val result = linearRef.fn()
                 val argSeq = $args
 
                 // Execute any Restricted arguments to get their actual values
                 val executedArgs = argSeq.map {
-                  case r: Restricted[_, _] => r.execute()
+                  case r: Restricted[_, _, _] => r.execute()
                   case other => other
                 }
 
@@ -132,7 +132,7 @@ object RestrictedMacros:
 
                 val method = result.getClass.getDeclaredMethod($name, argClasses*)
                 method.invoke(result, executedArgs.map(_.asInstanceOf[Object])*).asInstanceOf[rt]
-              }): Restricted[rt, newD & Tuple]
-            }.asExprOf[Restricted[rt, newD & Tuple]]
+              }): Restricted[rt, newD & Tuple, EmptyTuple]
+            }.asExprOf[Restricted[rt, newD & Tuple, EmptyTuple]]
     }
 end RestrictedMacros

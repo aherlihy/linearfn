@@ -25,7 +25,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
       val num = 42
       val actual = 5
       val result = RestrictedDynamicQuotes.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamicQuotes.Restricted[Int, (0, 0)] = RestrictedDynamicQuotes.Restricted.LinearRef[Int, (0, 0)](() => actual)
+        val tmp: RestrictedDynamicQuotes.Restricted[Int, (0, 0), EmptyTuple] = RestrictedDynamicQuotes.Restricted.LinearRef[Int, (0, 0), EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -38,7 +38,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
       val num = 42
       val actual = 5
       val result = RestrictedDynamicQuotes.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamicQuotes.Restricted[Int, Tuple1[0]] = RestrictedDynamicQuotes.Restricted.LinearRef[Int, Tuple1[0]](() => actual)
+        val tmp: RestrictedDynamicQuotes.Restricted[Int, Tuple1[0], EmptyTuple] = RestrictedDynamicQuotes.Restricted.LinearRef[Int, Tuple1[0], EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)

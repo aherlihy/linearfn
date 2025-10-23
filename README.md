@@ -327,83 +327,123 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  > )
  > ```
 
-5. What about methods of arguments that should be considered as "use"? A: The `@consumed` Annotation (Not Yet Implemented):
-> Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
->  - `close()` on a file handle
->  - `freeze()` on a mutable array
->  - `clear()` on a collection
->
-> Currently, our linearity system prevents using `refs._1` to create multiple output values, but it doesn't prevent multiple operations on the same reference within the function body:
-> ```scala
-> // Currently allowed (but unsafe for some operations):
-> LinearFn.apply(Tuple1(arr))(refs =>
->   val frozen = refs._1.freeze()  // "Consumes" the array
->   val mutated = refs._1.write(0, 10)  // But can still call methods on refs._1!
->   Tuple1(frozen)  // Only one output, so linearity is satisfied
-> )
-> ```
->
-> **Proposed Solution:**
->
-> Add a `@consumed` annotation to mark methods that consume their receiver:
->
-> ```scala
-> @ops
-> case class MArray[A](private val buf: Array[A]):
->   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
->
->   @consumed  // Mark as consuming operation
->   def freeze(): Array[A] = buf.clone()
-> ```
->
-> **Implementation Sketch:**
->
-> Add a third type parameter `Consumed <: Boolean` to `Restricted[A, D, Consumed]`:
->
-> ```scala
-> trait Restricted[A, D <: Tuple, Consumed <: Boolean]
-> ```
->
-> Default to `false` (unconsumed). Extension methods would be generated differently:
->
-> ```scala
-> // Normal methods: only match unconsumed values
-> extension [A, D <: Tuple](p: Restricted[MArray[A], D, false])
->   def write[D1 <: Tuple, D2 <: Tuple](
->     i: Restricted[Int, D1],
->     a: Restricted[A, D2]
->   ): Restricted[MArray[A], Tuple.Concat[D1, Tuple.Concat[D2, D]], false] =
->     p.stageCall[MArray[A], ...]("write", (i, a))
->
-> // @consumed methods: return consumed=true
-> extension [A, D <: Tuple](p: Restricted[MArray[A], D, false])
->   def freeze(): Restricted[Array[A], D, true] =  // Returns consumed!
->     p.stageCall[Array[A], ...]("freeze", EmptyTuple)
-> ```
->
-> **Behavior:**
->
-> ```scala
-> // OK: freeze once, return the result
-> LinearFn.apply(Tuple1(arr))(refs =>
->   val frozen = refs._1.freeze()  // Restricted[Array[A], _, true]
->   Tuple1(frozen)  // Can return consumed values
-> )
->
-> // ERROR: No extension methods match consumed values
-> LinearFn.apply(Tuple1(arr))(refs =>
->   val frozen = refs._1.freeze()  // Restricted[Array[A], _, true]
->   val oops = frozen.write(0, 10)  // No 'write' method on consumed values!
->   Tuple1(oops)
-> )
->
-> // ERROR: Can't use refs._1 after it's been consumed
-> LinearFn.apply(Tuple1(arr))(refs =>
->   val frozen = refs._1.freeze()  // refs._1 is now consumed
->   val oops = refs._1.write(0, 10)  // refs._1 still tracked as consumed!
->   Tuple1(frozen)
-> )
-> ```
+5. **Consumption Tracking with `@consumed` and `@unconsumed` Annotations:**
+
+Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
+ - `close()` on a file handle
+ - `freeze()` on a mutable array
+ - `commit()` or `rollback()` on a transaction
+
+Our linearity system now tracks consumption state using a third type parameter `C <: Tuple` on `Restricted[A, D, C]`:
+- `C = EmptyTuple`: Value is unconsumed (can call regular operations)
+- `C = Tuple1[true]`: Value is consumed (limited operations allowed)
+
+**Three Method Annotations:**
+
+1. **Default (no annotation)**: Requires unconsumed receiver, returns unconsumed value
+   ```scala
+   def write(i: Int, a: A): MArray[A]
+   // Generated:
+   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+   //   def write(...): Restricted[MArray[A], ..., EmptyTuple]
+   ```
+
+2. **`@consumed`**: Requires unconsumed receiver, returns consumed value
+   ```scala
+   @consumed
+   def freeze(): Array[A]
+   // Generated:
+   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
+   ```
+
+3. **`@unconsumed`**: Accepts any consumption state, preserves that state
+   ```scala
+   @unconsumed
+   def size(): (MArray[A], Int)
+   // Generated:
+   // extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
+   //   def size(): Restricted[(MArray[A], Int), D, C]
+   ```
+
+**Example Usage:**
+
+```scala
+@ops
+case class MArray[A](private val buf: Array[A]):
+  // Default: unconsumed → unconsumed
+  def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
+
+  // @unconsumed: any → any (preserves state)
+  @unconsumed
+  def size(): (MArray[A], Int) = (this, buf.length)
+
+  // @consumed: unconsumed → consumed
+  @consumed
+  def freeze(): Array[A] = buf.clone()
+
+// ✓ OK: write, then freeze
+LinearFn.apply(Tuple1(arr))(refs =>
+  val updated = refs._1.write(0, 10)  // EmptyTuple → EmptyTuple
+  val frozen = updated.freeze()       // EmptyTuple → Tuple1[true]
+  Tuple1(frozen)
+)
+
+// ✓ OK: size can be called before freeze
+LinearFn.apply(Tuple1(arr))(refs =>
+  val (arr1, sz) = refs._1.size()     // Unconsumed → unconsumed
+  val frozen = arr1.freeze()          // Unconsumed → consumed
+  Tuple1(frozen)
+)
+
+// ✓ OK: size can be called after freeze (because @unconsumed)
+LinearFn.apply(Tuple1(arr))(refs =>
+  val consumed = refs._1.freeze()     // Unconsumed → consumed
+  val (arr2, sz) = consumed.size()    // Consumed → consumed (@unconsumed preserves)
+  Tuple1(arr2)
+)
+
+// ✗ ERROR: Can't write to consumed value
+LinearFn.apply(Tuple1(arr))(refs =>
+  val consumed = refs._1.freeze()     // Unconsumed → consumed
+  val updated = consumed.write(0, 10) // ERROR: write requires EmptyTuple
+  Tuple1(updated)
+)
+
+// ✗ ERROR: Can't freeze twice
+LinearFn.apply(Tuple1(arr))(refs =>
+  val frozen = refs._1.freeze()       // Unconsumed → consumed
+  val frozen2 = frozen.freeze()       // ERROR: freeze requires EmptyTuple
+  Tuple1(frozen2)
+)
+```
+
+**Returning Consumed Values:**
+
+Use `applyConsumed` to require that all arguments are consumed:
+
+```scala
+val result = LinearFn.applyConsumed(Tuple1(arr))(refs =>
+  val frozen = refs._1.freeze()       // C = Tuple1[true]
+  Tuple1(frozen)                      // OK: frozen is consumed
+)
+
+// ERROR: write doesn't consume, so this fails
+LinearFn.applyConsumed(Tuple1(arr))(refs =>
+  val updated = refs._1.write(0, 10)  // C = EmptyTuple (not consumed!)
+  Tuple1(updated)                     // ERROR: must be consumed
+)
+```
+
+**Argument Consumption (Future Work):**
+
+Currently, method parameters ignore consumption state - both consumed and unconsumed arguments are accepted. For example:
+```scala
+// Both work, even though other has different consumption states
+def combine(other: MArray[A]): MArray[A]
+```
+
+This may be refined in future versions to allow consuming or requiring specific consumption states for arguments.
 
 6. **Relationship to Traditional Linear Types:**
 

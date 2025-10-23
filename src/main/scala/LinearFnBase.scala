@@ -13,57 +13,57 @@ import scala.annotation.implicitNotFound
 abstract class LinearFnBase:
 
   // Abstract types to be defined by implementations
-  type Restricted[A, D <: Tuple]
+  type Restricted[A, D <: Tuple, C <: Tuple]
 
   // Factory method for creating LinearRef instances
-  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D]
+  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C]
 
   // Execute a Restricted value
-  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A
 
-  // Helper match type to extract inner type and dependencies from potentially nested containers
-  // Returns (innermost_type, dependencies)
+  // Helper match type to extract inner type, dependencies, and consumed state from potentially nested containers
+  // Returns (innermost_type, dependencies, consumption_state)
   // This is the PRIMARY place to add new container types for lifting support
   type LiftInnerType[T] = T match
-    case Restricted[a, d] => (a, d)
+    case Restricted[a, d, c] => (a, d, c)
     case List[inner] => LiftInnerType[inner] match
-      case (a, d) => (List[a], d)
+      case (a, d, c) => (List[a], d, c)
     case Option[inner] => LiftInnerType[inner] match
-      case (a, d) => (Option[a], d)
+      case (a, d, c) => (Option[a], d, c)
     case Vector[inner] => LiftInnerType[inner] match
-      case (a, d) => (Vector[a], d)
+      case (a, d, c) => (Vector[a], d, c)
 
   // Common match types
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, Tuple1[index]]]
+    case (elem, index) => Restricted[elem, Tuple1[index], EmptyTuple]]
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
     case EmptyTuple => EmptyTuple
     case h *: t => LiftInnerType[h] match
-      case (_, d) => HasDuplicate[d] *: InverseMapDeps[t]
+      case (_, d, _) => HasDuplicate[d] *: InverseMapDeps[t]
   }
 
-  type ToRestricted[AT <: Tuple, DT <: Tuple] =
-    Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
+  type ToRestricted[AT <: Tuple, DT <: Tuple, CT <: Tuple] =
+    Tuple.Map[Tuple.Zip[Tuple.Zip[AT, DT], CT], [T] =>> ConstructRestricted[T]]
 
   // Recursive helper to reconstruct nested Restricted types
-  type ReconstructRestricted[A, D <: Tuple] = A match
-    case List[inner] => List[ReconstructRestricted[inner, D]]
-    case Option[inner] => Option[ReconstructRestricted[inner, D]]
-    case Vector[inner] => Vector[ReconstructRestricted[inner, D]]
-    case _ => Restricted[A, D]
+  type ReconstructRestricted[A, D <: Tuple, C <: Tuple] = A match
+    case List[inner] => List[ReconstructRestricted[inner, D, C]]
+    case Option[inner] => Option[ReconstructRestricted[inner, D, C]]
+    case Vector[inner] => Vector[ReconstructRestricted[inner, D, C]]
+    case _ => Restricted[A, D, C]
 
   type ConstructRestricted[T] = T match
     // Automatic lifting: construct containers of Restricted types (must come BEFORE general case)
-    case (List[a], d) => ReconstructRestricted[List[a], d]
-    case (Option[a], d) => ReconstructRestricted[Option[a], d]
-    case (Vector[a], d) => ReconstructRestricted[Vector[a], d]
-    case (a, d) => Restricted[a, d]
+    case ((List[a], d), c) => ReconstructRestricted[List[a], d, c]
+    case ((Option[a], d), c) => ReconstructRestricted[Option[a], d, c]
+    case ((Vector[a], d), c) => ReconstructRestricted[Vector[a], d, c]
+    case ((a, d), c) => Restricted[a, d, c]
 
   // Recursively extract dependencies from nested containers
   // Note: This uses a different recursion pattern than LiftInnerType
   type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[_, d] => d
+    case Restricted[_, d, _] => d
     case List[inner] => ExtractDependencies[inner]
     case Option[inner] => ExtractDependencies[inner]
     case Vector[inner] => ExtractDependencies[inner]
@@ -74,16 +74,24 @@ abstract class LinearFnBase:
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
     case h *: tail => LiftInnerType[h] match
-      case (a, _) => a *: ExtractResultTypes[tail]
+      case (a, _, _) => a *: ExtractResultTypes[tail]
 
   type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
     case h *: tail => LiftInnerType[h] match
-      case (_, d) => d *: ExtractDependencyTypes[tail]
+      case (_, d, _) => d *: ExtractDependencyTypes[tail]
+
+  type ExtractConsumedTypes[RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case h *: tail => LiftInnerType[h] match
+      case (_, _, c) => c *: ExtractConsumedTypes[tail]
 
   type CollateDeps[A, D <: Tuple] <: Tuple = A match
-    case Restricted[a, d] => Tuple.Concat[d, D]
+    case Restricted[a, d, _] => Tuple.Concat[d, D]
     case _ => D
+  type CollateConsumed[A, C <: Tuple] <: Tuple = A match
+    case Restricted[a, _, c] => Tuple.Concat[c, C]
+    case _ => C
 
   type CollateAllDeps[A <: Tuple, D <: Tuple] <: Tuple = A match
     case EmptyTuple => D
@@ -95,7 +103,7 @@ abstract class LinearFnBase:
     case list: List[_] => list.map(executeNested)
     case opt: Option[_] => opt.map(executeNested)
     case vec: Vector[_] => vec.map(executeNested)
-    case r: Restricted[_, _] => executeRestricted(r)
+    case r: Restricted[_, _, _] => executeRestricted(r)
     case other => other
 
   // Common tupleExecute implementation
@@ -104,18 +112,56 @@ abstract class LinearFnBase:
       case EmptyTuple => EmptyTuple
       case h *: tail => executeNested(h) *: tupleExecute(tail)
 
+  // Helper to check that all consumption state tuples have length 0 or 1
+  type AllConsumedStatesAtMostOne[CT <: Tuple] <: Boolean = CT match
+    case EmptyTuple => true
+    case h *: t => Tuple.Size[h] match
+      case 0 => AllConsumedStatesAtMostOne[t]
+      case 1 => AllConsumedStatesAtMostOne[t]
+      case _ => false
+
+  // Helper to check that all consumption state tuples have exactly length 1
+  type AllConsumedStatesExactlyOne[CT <: Tuple] <: Boolean = CT match
+    case EmptyTuple => true
+    case h *: t => Tuple.Size[h] match
+      case 1 => AllConsumedStatesExactlyOne[t]
+      case _ => false
+
   // Common LinearFn.apply implementation
   object LinearFn:
-    def apply[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple]
+    def apply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
     (fns: ToLinearRef[AT] => RQT)
     (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
 //        /* DEBUG */ (using @implicitNotFound("DEBUG: RQT = ${RQT}") debugRQT: RQT =:= Nothing)
     (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
     (using @implicitNotFound("Linear functions must have the same number of argument and return types and the return types must be Restricted") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
     (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
-    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT]): RT =
+    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
+    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
+    (using @implicitNotFound("All return values must have consumption state of length 0 or 1") ev5: AllConsumedStatesAtMostOne[CT] =:= true): RT =
+      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
+      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
+      val exec = fns(refsTuple)
+      println(exec)
+      tupleExecute(exec).asInstanceOf[RT]
+
+    /**
+     * applyConsumed - variant of apply that requires all return values to be consumed.
+     * Use this when you want to ensure that all results have been consumed exactly once.
+     */
+    def applyConsumed[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
+    (args: AT)
+    (fns: ToLinearRef[AT] => RQT)
+    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
+    (using @implicitNotFound("Linear functions must have the same number of argument and return types and the return types must be Restricted") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
+    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
+    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
+    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
+    (using @implicitNotFound("All return values must be consumed (consumption state length must be exactly 1)") ev5: AllConsumedStatesExactlyOne[CT] =:= true): RT =
       val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
       val exec = fns(refsTuple)

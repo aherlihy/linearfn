@@ -1,28 +1,13 @@
 package test
 
-import linearfn.ops
+import linearfn.{ops, consumed, unconsumed}
+import munit.FunSuite
+import linearfn.RestrictedSelectable.LinearFn
 
 import scala.reflect.ClassTag
 
-final class MArrayUnsafe[A](private val buf: Array[A]) {
-  def write(i: Int, a: A): MArrayUnsafe[A] = { buf(i) = a; this }
-  def read(i: Int): A = buf(i)
-  def freezeNoCopy(): Array[A] = buf
-}
-
-object MArrayUnsafe {
-  def newMArray[A: ClassTag](size: Int): MArrayUnsafe[A] =
-    new MArrayUnsafe(new Array[A](size))
-
-  def array[A: ClassTag](size: Int, pairs: List[(Int, A)]): Array[A] = {
-    val ma = newMArray[A](size)
-    pairs.foreach { case (i, a) => ma.write(i, a) }
-    ma.freezeNoCopy()
-  }
-}
-
 @ops
-final case class MArray[A](private val buf: Array[A]):
+final case class MArray[A: ClassTag](private val buf: Array[A]):
   def write(i: Int, a: A): MArray[A] =
     buf(i) = a; this
 
@@ -30,6 +15,37 @@ final case class MArray[A](private val buf: Array[A]):
   def read(i: Int): (MArray[A], A) =
     (this, buf(i))
 
+  /** Combine this array with another array by concatenating them.
+    * Returns a single MArray with dependencies on both inputs.
+    * Can be returned twice to satisfy linearity (2 inputs → 2 outputs).
+    * Marked @unconsumed so it can be called on consumed or unconsumed receivers.
+    * Currently accepts arguments in any consumption state (consumed or unconsumed).
+    * Future work: Could add @unconsumed or @consumed to require specific states for `other`.
+    */
+  @unconsumed
+  def combine(other: MArray[A]): MArray[A] =
+    val combined = new Array[A](buf.length + other.buf.length)
+    Array.copy(buf, 0, combined, 0, buf.length)
+    Array.copy(other.buf, 0, combined, buf.length, other.buf.length)
+    MArray(combined)
+
+  /** Query method that can be called on any consumption state. Returns the size. */
+  @unconsumed
+  def size(): Int =
+    buf.length
+
+  /** No-op method that can be called on any consumption state and returns MArray. */
+  @unconsumed
+  def nothing(): MArray[A] =
+    this
+
+  /** Mark this array as sealed/consumed but keep it as MArray for testing. */
+  @consumed
+  def seal(): MArray[A] =
+    this
+
   /** Consume the mutable array and return an immutable snapshot. */
+  @consumed
   def freeze(): Array[A] =
     buf.clone()
+

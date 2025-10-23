@@ -36,3 +36,61 @@ import scala.annotation.StaticAnnotation
  * @see OpsExtensionGenerator for the code generation logic
  */
 class ops extends StaticAnnotation
+
+/**
+ * Marker annotation for methods that consume their receiver.
+ *
+ * When a method is annotated with @consumed, the generated extension method:
+ * - Can only be called on unconsumed values (C = EmptyTuple)
+ * - Returns a consumed value (C = Tuple1[true])
+ *
+ * Usage:
+ * {{{
+ * @ops
+ * case class MArray[A](private val buf: Array[A]):
+ *   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
+ *
+ *   @consumed  // This method consumes the array
+ *   def freeze(): Array[A] = buf.clone()
+ * }}}
+ *
+ * The generated extension for freeze():
+ * {{{
+ * extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+ *   def freeze(): Restricted[Array[A], D, Tuple1[true]] = ...
+ * }}}
+ *
+ * This allows the type system to track that freeze() consumes the MArray,
+ * preventing further use after calling freeze().
+ *
+ * @consumed and @unconsumed are mutually exclusive.
+ */
+class consumed extends StaticAnnotation
+
+/**
+ * Marker annotation for methods that can be called on consumed or unconsumed values.
+ *
+ * When a method is annotated with @unconsumed, the generated extension method:
+ * - Can be called on values in any consumption state (C <: Tuple)
+ * - Preserves the exact consumption state of the receiver
+ *
+ * Usage:
+ * {{{
+ * @ops
+ * case class MArray[A](private val buf: Array[A]):
+ *   @unconsumed  // Can be called on consumed or unconsumed arrays
+ *   def size(): Int = buf.length
+ * }}}
+ *
+ * The generated extension for size():
+ * {{{
+ * extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
+ *   def size(): Restricted[Int, D, C] = ...
+ * }}}
+ *
+ * This allows calling query methods on both consumed and unconsumed values,
+ * preserving the consumption state.
+ *
+ * @consumed and @unconsumed are mutually exclusive.
+ */
+class unconsumed extends StaticAnnotation

@@ -25,7 +25,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
       val num = 42
       val actual = 5
       val result = RestrictedDynamicMacros.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamicMacros.Restricted[Int, (0, 0)] = RestrictedDynamicMacros.Restricted.LinearRef[Int, (0, 0)](() => actual)
+        val tmp: RestrictedDynamicMacros.Restricted[Int, (0, 0), EmptyTuple] = RestrictedDynamicMacros.Restricted.LinearRef[Int, (0, 0), EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -38,7 +38,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
       val num = 42
       val actual = 5
       val result = RestrictedDynamicMacros.LinearFn.apply((str, num))(refs =>
-        val tmp: RestrictedDynamicMacros.Restricted[Int, Tuple1[0]] = RestrictedDynamicMacros.Restricted.LinearRef[Int, Tuple1[0]](() => actual)
+        val tmp: RestrictedDynamicMacros.Restricted[Int, Tuple1[0], EmptyTuple] = RestrictedDynamicMacros.Restricted.LinearRef[Int, Tuple1[0], EmptyTuple](() => actual)
         (tmp, refs._1)
       )
     """)
@@ -109,9 +109,9 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         def combine(other: Person): Person =
           Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-      extension [D <: Tuple](p: RestrictedDynamicMacros.Restricted[Person, D])
-        def combine[D2 <: Tuple](other: RestrictedDynamicMacros.Restricted[Person, D2]): RestrictedDynamicMacros.Restricted[Person, Tuple.Concat[D, D2]] =
-          p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+      extension [D <: Tuple, C <: Tuple](p: RestrictedDynamicMacros.Restricted[Person, D, C])
+        def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedDynamicMacros.Restricted[Person, D2, C2]): RestrictedDynamicMacros.Restricted[Person, Tuple.Concat[D, D2], EmptyTuple] =
+          p.stageCall[Tuple.Concat[D, D2], EmptyTuple]("combine", Tuple1(other))
 
       val person1 = Person("Alice", 30)
       val person2 = Person("Bob", 25)
@@ -130,9 +130,9 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         def combine(other: Person): Person =
           Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-      extension [D <: Tuple](p: RestrictedDynamicMacros.Restricted[Person, D])
-        def combine[D2 <: Tuple](other: RestrictedDynamicMacros.Restricted[Person, D2]): RestrictedDynamicMacros.Restricted[Person, Tuple.Concat[D, D2]] =
-          p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+      extension [D <: Tuple, C <: Tuple](p: RestrictedDynamicMacros.Restricted[Person, D, C])
+        def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedDynamicMacros.Restricted[Person, D2, C2]): RestrictedDynamicMacros.Restricted[Person, Tuple.Concat[D, D2], EmptyTuple] =
+          p.stageCall[Tuple.Concat[D, D2], EmptyTuple]("combine", Tuple1(other))
 
       val person1 = Person("Alice", 30)
       val person2 = Person("Bob", 25)

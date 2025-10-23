@@ -12,31 +12,31 @@ import Utils.*
 object RestrictedDynamicQuotes extends LinearFnBase:
 
   // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple] extends Dynamic:
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
     // Use inline with transparent return type for precise type inference
     transparent inline def selectDynamic(inline name: String): Any =
-      ${ selectDynamicQuote[A, D]('this, 'name) }
+      ${ selectDynamicQuote[A, D, C]('this, 'name) }
 
     transparent inline def applyDynamic(inline name: String)(inline args: Any*): Any =
-      ${ applyDynamicQuote[A, D]('this, 'name, 'args) }
+      ${ applyDynamicQuote[A, D, C]('this, 'name, 'args) }
 
     def execute(): A
 
   // Implementation-specific LinearRef
   object Restricted:
-    case class LinearRef[A, D <: Tuple](val fn: () => A) extends Restricted[A, D]:
+    case class LinearRef[A, D <: Tuple, C <: Tuple](val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
   // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
+  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
 
-  protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
     r.execute()
 
   // Inline quote implementation for selectDynamic - builds Select AST directly
-  private def selectDynamicQuote[A: Type, D <: Tuple: Type](
-    self: Expr[Restricted[A, D]],
+  private def selectDynamicQuote[A: Type, D <: Tuple: Type, C <: Tuple: Type](
+    self: Expr[Restricted[A, D, C]],
     name: Expr[String]
   )(using Quotes): Expr[Any] =
     import quotes.reflect.*
@@ -44,7 +44,7 @@ object RestrictedDynamicQuotes extends LinearFnBase:
     val fieldName = name.valueOrAbort
 
     // Build the Select AST
-    val linearRefExpr = '{ $self.asInstanceOf[Restricted.LinearRef[A, D]] }
+    val linearRefExpr = '{ $self.asInstanceOf[Restricted.LinearRef[A, D, C]] }
     val fnCall = '{ $linearRefExpr.fn() }
     val selectTree = Select.unique(fnCall.asTerm, fieldName)
 
@@ -53,12 +53,12 @@ object RestrictedDynamicQuotes extends LinearFnBase:
       case '[fieldType] =>
         val resultExpr = selectTree.asExprOf[fieldType]
         '{
-          Restricted.LinearRef[fieldType, D](() => $resultExpr): Restricted[fieldType, D]
-        }.asExprOf[Restricted[fieldType, D]]
+          Restricted.LinearRef[fieldType, D, C](() => $resultExpr): Restricted[fieldType, D, C]
+        }.asExprOf[Restricted[fieldType, D, C]]
 
   // Inline quote implementation for applyDynamic - builds Apply AST directly
-  private def applyDynamicQuote[A: Type, D <: Tuple: Type](
-    self: Expr[Restricted[A, D]],
+  private def applyDynamicQuote[A: Type, D <: Tuple: Type, C <: Tuple: Type](
+    self: Expr[Restricted[A, D, C]],
     name: Expr[String],
     args: Expr[Seq[Any]]
   )(using Quotes): Expr[Any] =
@@ -76,18 +76,18 @@ object RestrictedDynamicQuotes extends LinearFnBase:
     var currentDeps = TypeRepr.of[D]
     for argExpr <- argExprs do
       argExpr.tpe.dealias.widen match {
-        case AppliedType(restrictedType, List(_, dArg))
+        case AppliedType(restrictedType, List(_, dArg, _))
           if restrictedType.typeSymbol.fullName == "linearfn.RestrictedDynamicQuotes$.Restricted" =>
           currentDeps = TypeRepr.of[Tuple.Concat].appliedTo(List(dArg, currentDeps))
         case _ => ()
       }
 
     // Build AST
-    val linearRefExpr = '{ $self.asInstanceOf[Restricted.LinearRef[A, D]] }
+    val linearRefExpr = '{ $self.asInstanceOf[Restricted.LinearRef[A, D, C]] }
     val fnCall = '{ $linearRefExpr.fn() }
     val argsExpr = '{
       $args.map {
-        case r: Restricted[_, _] => r.execute()
+        case r: Restricted[_, _, _] => r.execute()
         case x => x
       }
     }
@@ -109,8 +109,8 @@ object RestrictedDynamicQuotes extends LinearFnBase:
           case '[rt] =>
             val resultExpr = applyTree.asExprOf[rt]
             '{
-              Restricted.LinearRef[rt, newD & Tuple](() => $resultExpr): Restricted[rt, newD & Tuple]
-            }.asExprOf[Restricted[rt, newD & Tuple]]
+              Restricted.LinearRef[rt, newD & Tuple, EmptyTuple](() => $resultExpr): Restricted[rt, newD & Tuple, EmptyTuple]
+            }.asExprOf[Restricted[rt, newD & Tuple, EmptyTuple]]
         }
     }
 

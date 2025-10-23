@@ -188,9 +188,9 @@ class LiftingTest extends FunSuite:
     def combine(other: Person): Person =
       Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-  extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-    def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
-      p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+  extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+    def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
+      p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
 
   val person1 = Person("Alice", 30)
   val person2 = Person("Bob", 25)
@@ -210,9 +210,9 @@ class LiftingTest extends FunSuite:
     def combine(other: Person): Person =
       Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-  extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-    def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
-      p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+  extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
+    def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
+      p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
 
   val person1 = Person("Alice", 30)
   val person2 = Person("Bob", 25)
