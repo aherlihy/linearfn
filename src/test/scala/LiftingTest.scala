@@ -103,7 +103,7 @@ class LiftingTest extends FunSuite:
     """)
     // This tests that we still catch wrong number of arguments
     // 1 arg in, but returning 2 values (both Lists)
-    assert(obtained.contains("Number of actual arguments must match"), s"obtained: $obtained")
+    assert(obtained.contains(argsMsg), s"obtained: $obtained")
   }
 
   test("linearity OK: different refs in different containers") {
@@ -164,9 +164,6 @@ class LiftingTest extends FunSuite:
   test("implicit conversion does not bypass lifting - dependencies properly tracked") {
     // This test verifies that List[Restricted[A, D]] is lifted to Restricted[List[A], D]
     // and not implicitly converted to Restricted[List[Restricted[A, D]], EmptyTuple]
-    val ex1 = OpsExample("Alice", "30")
-    val ex2 = OpsExample("Bob", "25")
-
     // If implicit conversion bypassed lifting, returning the list twice would work
     // (because EmptyTuple dependency wouldn't conflict)
     // But with proper lifting, the list has dependency Tuple1[0], so this should fail
@@ -181,4 +178,47 @@ class LiftingTest extends FunSuite:
     // If lifting works correctly, both list references have dependency Tuple1[0]
     // and returning them both violates linearity
     assert(obtained.contains(linearMsg), s"obtained: $obtained")
+  }
+
+  test("known wrap types ok") {
+    val obtained = compileErrors(
+      """
+  case class Person(name: String, age: Int):
+    def combine(other: Person): Person =
+      Person(s"${this.name} & ${other.name}", this.age + other.age)
+
+  extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
+    def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
+      p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+
+  val person1 = Person("Alice", 30)
+  val person2 = Person("Bob", 25)
+  val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val option = Option(refs._1.combine(refs._1))
+    (option, refs._2)
+  )
+    """)
+    assert(obtained.contains(affineMsg), s"obtained: $obtained")
+  }
+
+  test("unknown wrap types not ok") {
+    val obtained = compileErrors(
+      """
+  case class Wrap[T](v: T)
+  case class Person(name: String, age: Int):
+    def combine(other: Person): Person =
+      Person(s"${this.name} & ${other.name}", this.age + other.age)
+
+  extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
+    def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
+      p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+
+  val person1 = Person("Alice", 30)
+  val person2 = Person("Bob", 25)
+  val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val wrapped = Wrap(refs._1.combine(refs._2))
+    (wrapped, refs._2)
+  )
+    """)
+    assert(obtained.contains(argsMsg), s"obtained: $obtained")
   }

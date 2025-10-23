@@ -104,7 +104,28 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
     assertEquals(result, (Person("Alice & Bob", 55), person2))
   }
 
-  test("combine method fails with duplicate use") {
+  test("Combine tracks linearity") {
+    val obtained = compileErrors(
+      """
+      case class Person(name: String, age: Int):
+        def combine(other: Person): Person =
+          Person(s"${this.name} & ${other.name}", this.age + other.age)
+
+      extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
+        def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
+          p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
+
+      val person1 = Person("Alice", 30)
+      val person2 = Person("Bob", 25)
+      RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+        val combined = refs._1.combine(refs._1)
+        (combined, refs._2)
+      )
+    """)
+    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+  }
+
+  test("Wrong # of arguments fails") {
     val obtained = compileErrors("""
       case class Person(name: String, age: Int):
         def combine(other: Person): Person =
@@ -121,5 +142,5 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         Tuple1(combined)
       )
     """)
-    assert(obtained.contains("Number of actual arguments must match") || obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.argsMsg), s"obtained: $obtained")
   }
