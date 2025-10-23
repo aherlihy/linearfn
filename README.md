@@ -279,6 +279,33 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  are a bit weird: either the compiler generates them and the user needs to copy them manually into their codebase, or 
  we use ScalaMeta to apply and generate these extension methods ahead-of-time. 
 
-3. We do implicit conversions from plain values to `Restricted[T, EmptyTuple]` (for Selectable so far) so that users 
- can pass plain values to methods that expect `Restricted` arguments. We also convert from 
- `List[Restricted[T, D]]` to `Restricted[List[T], D]` (also `Option` and `Vector`) on linear function return.
+3. Passing non-restricted terms to methods of Restricted types in the body of linear functions (e.g., refs._1.method(5))
+
+> This is possible, for example if you want to pass an integer to a method of a Restricted type.
+ Implicit conversions from plain values to `Restricted[T, EmptyTuple]` (for Selectable so far) allow users
+ to pass plain values to methods that expect `Restricted` arguments. Because the dependency type of the conversion 
+ is `EmptyTuple`, it doesn't affect linearity tracking.
+
+4. Returning types that nest Restricted types, e.g., `List[Restricted[T, D]]`.
+
+ > **Built-in containers** like `List`, `Option`, and `Vector` are supported out-of-the-box. When returned from a linear
+ function, `List[Restricted[T, D]]` is automatically lifted into `Restricted[List[T], D]`. This is handled by match types
+ in `LinearFnBase.scala` and works at arbitrary nesting depths (`List[List[Restricted[T, D]]]`, etc.).
+ Implicit conversions won't help here because the linearity match types will fail before implicits are considered.
+
+ > **User-defined containers** can be made liftable by:
+ > 1. Implementing the `Liftable[F[_]]` trait for your container type
+ > 2. Calling `.lift` when returning wrapped Restricted values
+ >
+ > Example:
+ > ```scala
+ > case class Box[T](contents: T)
+ >
+ > given RestrictedSelectable.Restricted.Liftable[Box] with
+ >   def map[A, B](fa: Box[A])(f: A => B): Box[B] = Box(f(fa.contents))
+ >
+ > val result = LinearFn.apply((ex1, ex2))(refs =>
+ >   val boxed = Box(refs._1).lift  // Explicit .lift call
+ >   (boxed, refs._2)
+ > )
+ > ```

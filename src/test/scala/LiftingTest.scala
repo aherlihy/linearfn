@@ -201,7 +201,7 @@ class LiftingTest extends FunSuite:
     assert(obtained.contains(affineMsg), s"obtained: $obtained")
   }
 
-  test("unknown wrap types not ok") {
+  test("unknown wrap types not ok without .lift") {
     val obtained = compileErrors(
       """
   case class Wrap[T](v: T)
@@ -221,4 +221,40 @@ class LiftingTest extends FunSuite:
   )
     """)
     assert(obtained.contains(argsMsg), s"obtained: $obtained")
+  }
+
+  test("user-defined wrap types work with .lift and Liftable instance") {
+    case class Wrap[T](v: T)
+
+    given RestrictedSelectable.Restricted.Liftable[Wrap] with
+      def map[A, B](fa: Wrap[A])(f: A => B): Wrap[B] = Wrap(f(fa.v))
+
+    val ex1 = OpsExample("Alice", "30")
+    val ex2 = OpsExample("Bob", "25")
+
+    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      val wrapped = Wrap(refs._1).lift
+      (wrapped, refs._2)
+    )
+
+    assertEquals(result._1.v, ex1)
+    assertEquals(result._2, ex2)
+  }
+
+  test("user-defined wrap types enforce linearity") {
+    case class Wrap[T](v: T)
+
+    given RestrictedSelectable.Restricted.Liftable[Wrap] with
+      def map[A, B](fa: Wrap[A])(f: A => B): Wrap[B] = Wrap(f(fa.v))
+
+    val obtained = compileErrors("""
+      val ex1 = OpsExample("Alice", "30")
+      val ex2 = OpsExample("Bob", "25")
+      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+        val wrapped = Wrap(refs._1).lift
+        (wrapped, wrapped)  // Trying to return same wrapped value twice
+      )
+    """)
+    // Should fail because both returns depend on refs._1
+    assert(obtained.contains(linearMsg), s"obtained: $obtained")
   }

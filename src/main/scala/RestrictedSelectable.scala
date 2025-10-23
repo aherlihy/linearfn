@@ -77,6 +77,37 @@ object RestrictedSelectable extends LinearFnBase:
       def apply(value: S): Restricted[S, EmptyTuple] =
         LinearRef[S, EmptyTuple](() => value)
 
+    /**
+     * Type class for user-defined liftable containers.
+     * Implement this trait to enable lifting for custom container types.
+     *
+     * Built-in containers (List, Option, Vector) are lifted automatically via match types.
+     * User-defined containers require explicit `.lift` calls.
+     */
+    trait Liftable[F[_]]:
+      def map[A, B](fa: F[A])(f: A => B): F[B]
+
+    /**
+     * Extension method to explicitly lift user-defined containers.
+     * Transforms F[Restricted[A, D]] into Restricted[F[A], D].
+     *
+     * Usage:
+     * {{{
+     * case class Box[T](contents: T)
+     * given Liftable[Box] with
+     *   def map[A, B](fa: Box[A])(f: A => B) = Box(f(fa.contents))
+     *
+     * val result = LinearFn.apply((ex1, ex2))(refs =>
+     *   (Box(refs._1).lift, refs._2)  // .lift normalizes the type
+     * )
+     * }}}
+     *
+     * @see docs/UserDefinedContainers.md for detailed documentation
+     */
+    extension [F[_], A, D <: Tuple](container: F[Restricted[A, D]])(using ev: Liftable[F])
+      def lift: Restricted[F[A], D] =
+        LinearRef[F[A], D](() => ev.map(container)(_.execute()))
+
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
     Restricted.LinearRef(fn)
