@@ -5,11 +5,20 @@ ThisBuild / scalaVersion := "3.7.3"
 lazy val root = (project in file("."))
   .settings(
     name := "linearfn",
-    scalacOptions ++= Seq("-experimental"),
+    // Note: -experimental removed since @ops is now a simple marker annotation
+    // scalacOptions ++= Seq("-experimental"),
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test,
     Compile / sourceGenerators += Def.task {
       val sourceDir = (Compile / scalaSource).value
       val targetDir = (Compile / sourceManaged).value
+      val log = streams.value.log
+
+      OpsExtensionGenerator.generate(sourceDir, targetDir, log)
+    }.taskValue,
+    // Also generate extensions for test code
+    Test / sourceGenerators += Def.task {
+      val sourceDir = (Test / scalaSource).value
+      val targetDir = (Test / sourceManaged).value
       val log = streams.value.log
 
       OpsExtensionGenerator.generate(sourceDir, targetDir, log)

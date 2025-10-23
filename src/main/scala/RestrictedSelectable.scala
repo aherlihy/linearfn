@@ -101,8 +101,6 @@ object RestrictedSelectable extends LinearFnBase:
      *   (Box(refs._1).lift, refs._2)  // .lift normalizes the type
      * )
      * }}}
-     *
-     * @see docs/UserDefinedContainers.md for detailed documentation
      */
     extension [F[_], A, D <: Tuple](container: F[Restricted[A, D]])(using ev: Liftable[F])
       def lift: Restricted[F[A], D] =

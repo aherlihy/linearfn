@@ -85,6 +85,26 @@ val result = LinearFn.apply((alice, bob))(refs =>
 
 To simplify the process of defining extension methods, the library provides an `@ops` annotation that automatically generates extension methods for all methods in a class. This uses an sbt source generator that runs during compilation.
 
+**Setup for Library Users:**
+
+To use `@ops` in your own project, you'll need to set up the sbt source generator in your `build.sbt`:
+
+```scala
+// Add dependency on linearfn library
+libraryDependencies += "com.yourorg" %% "linearfn" % "0.1.0"
+
+// Add source generator for @ops annotations
+Compile / sourceGenerators += Def.task {
+  val sourceDir = (Compile / scalaSource).value
+  val targetDir = (Compile / sourceManaged).value
+  val log = streams.value.log
+
+  linearfn.OpsExtensionGenerator.generate(sourceDir, targetDir, log)
+}.taskValue
+```
+
+**Note:** The `@ops` annotation is a simple marker annotation (not a macro annotation), so no `-experimental` compiler flag is required. The actual code generation happens during the sbt compilation phase via the source generator.
+
 1. Annotate your class with `@ops`:
 ```scala
 @ops
