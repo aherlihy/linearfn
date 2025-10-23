@@ -1,4 +1,6 @@
-package linearfn
+package test
+
+import linearfn.RestrictedSelectable
 
 /**
  * Tests for RestrictedSelectable implementation.

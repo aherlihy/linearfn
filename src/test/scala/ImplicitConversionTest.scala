@@ -1,14 +1,15 @@
-package linearfn
+package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import OpsExampleOps.*
+import linearfn.RestrictedSelectable
 
 /**
  * Tests demonstrating the implicit conversion from plain values to Restricted types.
  */
 @experimental
 class ImplicitConversionTest extends FunSuite:
+  import OpsExampleOps.*
 
   test("implicit conversion allows passing plain String to extension method") {
     val person = OpsExample("Alice", "30")

@@ -1,4 +1,6 @@
-package linearfn
+package test
+
+import linearfn.{ops, unrestricted}
 
 /**
  * Comprehensive example class for testing @ops annotation and extension generation.

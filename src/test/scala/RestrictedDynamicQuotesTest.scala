@@ -1,4 +1,6 @@
-package linearfn
+package test
+
+import linearfn.RestrictedDynamicQuotes
 
 /**
  * Tests for RestrictedDynamicQuotes implementation.

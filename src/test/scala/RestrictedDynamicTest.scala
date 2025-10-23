@@ -1,4 +1,6 @@
-package linearfn
+package test
+
+import linearfn.RestrictedDynamic
 
 /**
  * Tests for RestrictedDynamic implementation.

@@ -62,12 +62,25 @@ object RestrictedSelectable extends LinearFnBase:
             case other => other
           }.toSeq
 
-          val method = if (executedArgs.isEmpty) {
-            obj.getClass.getDeclaredMethod(name)
-          } else {
-            val argClasses = executedArgs.map(_.getClass.asInstanceOf[Class[?]]).toArray
-            obj.getClass.getDeclaredMethod(name, argClasses*)
+          // Get all methods with this name
+          val candidates = obj.getClass.getDeclaredMethods.filter(_.getName == name)
+
+          val method = candidates match {
+            case Array(single) =>
+              // Only one method with this name - just use it
+              single
+            case multiple if multiple.nonEmpty =>
+              // Multiple overloads - need to match by parameter count
+              multiple.find(_.getParameterCount == executedArgs.length).getOrElse {
+                throw new NoSuchMethodException(
+                  s"No method found: ${obj.getClass.getName}.$name with ${executedArgs.length} parameters"
+                )
+              }
+            case _ =>
+              throw new NoSuchMethodException(s"No method found: ${obj.getClass.getName}.$name")
           }
+
+          // Method.invoke handles primitive/wrapper boxing automatically
           method.invoke(obj, executedArgs*).asInstanceOf[R]
         )
       }

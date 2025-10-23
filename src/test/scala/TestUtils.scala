@@ -1,4 +1,4 @@
-package linearfn
+package test
 
 object TestUtils:
   val affineMsg = "is the query affine?"

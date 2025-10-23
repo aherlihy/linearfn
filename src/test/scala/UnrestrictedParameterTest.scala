@@ -1,8 +1,8 @@
-package linearfn
+package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import OpsExampleOps.*
+import linearfn.RestrictedSelectable
 
 /**
  * Comprehensive tests for @unrestricted parameters and implicit conversion.
@@ -14,6 +14,7 @@ import OpsExampleOps.*
  */
 @experimental
 class UnrestrictedParameterTest extends FunSuite:
+  import OpsExampleOps.*
 
   // ===== Test 1: Plain values with implicit conversion =====
 

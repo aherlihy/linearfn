@@ -1,4 +1,6 @@
-package linearfn
+package test
+
+import linearfn.RestrictedDynamicMacros
 
 /**
  * Tests for RestrictedDynamicMacros implementation.

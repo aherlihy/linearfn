@@ -1,8 +1,8 @@
-package linearfn
+package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import OpsExampleOps.*
+import linearfn.RestrictedSelectable
 
 /**
  * Tests for automatic lifting of nested types: T[Restricted[A, D]] => Restricted[T[A], D]
@@ -15,6 +15,7 @@ import OpsExampleOps.*
 @experimental
 class LiftingTest extends FunSuite:
   import TestUtils.*
+  import OpsExampleOps.*
 
   test("List[Restricted[A, D]] is automatically lifted in 2-tuple") {
     val ex1 = OpsExample("Alice", "30")

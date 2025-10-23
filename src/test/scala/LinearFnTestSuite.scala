@@ -1,6 +1,7 @@
-package linearfn
+package test
 
 import munit.FunSuite
+import linearfn.LinearFnBase
 
 /**
  * Shared test suite for all LinearFn implementations.
