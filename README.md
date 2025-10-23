@@ -326,3 +326,102 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  >   (boxed, refs._2)
  > )
  > ```
+
+5. What about methods of arguments that should be considered as "use"? A: The `@consumed` Annotation (Not Yet Implemented):
+> Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
+>  - `close()` on a file handle
+>  - `freeze()` on a mutable array
+>  - `clear()` on a collection
+>
+> Currently, our linearity system prevents using `refs._1` to create multiple output values, but it doesn't prevent multiple operations on the same reference within the function body:
+> ```scala
+> // Currently allowed (but unsafe for some operations):
+> LinearFn.apply(Tuple1(arr))(refs =>
+>   val frozen = refs._1.freeze()  // "Consumes" the array
+>   val mutated = refs._1.write(0, 10)  // But can still call methods on refs._1!
+>   Tuple1(frozen)  // Only one output, so linearity is satisfied
+> )
+> ```
+>
+> **Proposed Solution:**
+>
+> Add a `@consumed` annotation to mark methods that consume their receiver:
+>
+> ```scala
+> @ops
+> case class MArray[A](private val buf: Array[A]):
+>   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
+>
+>   @consumed  // Mark as consuming operation
+>   def freeze(): Array[A] = buf.clone()
+> ```
+>
+> **Implementation Sketch:**
+>
+> Add a third type parameter `Consumed <: Boolean` to `Restricted[A, D, Consumed]`:
+>
+> ```scala
+> trait Restricted[A, D <: Tuple, Consumed <: Boolean]
+> ```
+>
+> Default to `false` (unconsumed). Extension methods would be generated differently:
+>
+> ```scala
+> // Normal methods: only match unconsumed values
+> extension [A, D <: Tuple](p: Restricted[MArray[A], D, false])
+>   def write[D1 <: Tuple, D2 <: Tuple](
+>     i: Restricted[Int, D1],
+>     a: Restricted[A, D2]
+>   ): Restricted[MArray[A], Tuple.Concat[D1, Tuple.Concat[D2, D]], false] =
+>     p.stageCall[MArray[A], ...]("write", (i, a))
+>
+> // @consumed methods: return consumed=true
+> extension [A, D <: Tuple](p: Restricted[MArray[A], D, false])
+>   def freeze(): Restricted[Array[A], D, true] =  // Returns consumed!
+>     p.stageCall[Array[A], ...]("freeze", EmptyTuple)
+> ```
+>
+> **Behavior:**
+>
+> ```scala
+> // OK: freeze once, return the result
+> LinearFn.apply(Tuple1(arr))(refs =>
+>   val frozen = refs._1.freeze()  // Restricted[Array[A], _, true]
+>   Tuple1(frozen)  // Can return consumed values
+> )
+>
+> // ERROR: No extension methods match consumed values
+> LinearFn.apply(Tuple1(arr))(refs =>
+>   val frozen = refs._1.freeze()  // Restricted[Array[A], _, true]
+>   val oops = frozen.write(0, 10)  // No 'write' method on consumed values!
+>   Tuple1(oops)
+> )
+>
+> // ERROR: Can't use refs._1 after it's been consumed
+> LinearFn.apply(Tuple1(arr))(refs =>
+>   val frozen = refs._1.freeze()  // refs._1 is now consumed
+>   val oops = refs._1.write(0, 10)  // refs._1 still tracked as consumed!
+>   Tuple1(frozen)
+> )
+> ```
+
+6. **Relationship to Traditional Linear Types:**
+
+> Our definition of linearity is closer to scoped/region-based linear types than linear Haskell's "lineary on function types". 
+>
+> - **Traditional linear types**: Values can be consumed without appearing in output
+>  ```haskell
+>  close :: File %1-> IO ()  -- Consumes file, returns nothing
+>  ```
+>
+> - **Our current system**: All inputs must contribute to output (stricter)
+>  ```scala
+>  // ERROR: refs._1 not used (no dependency in output)
+>  LinearFn.apply(Tuple1(file))(refs => Tuple1(42))
+>  ```
+>
+> - **With `@consumed`**: Adds state tracking orthogonal to linearity
+>- **Linearity** = dependency appears in output types (unchanged)
+> - **Consumed** = operations no longer available on this value (new)
+>
+> Both would be enforced simultaneously. Consumed values still must contribute to the output.
