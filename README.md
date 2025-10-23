@@ -81,13 +81,9 @@ val result = LinearFn.apply((alice, bob))(refs =>
 )
 ```
 
-**TODO:** Confirm whether this can be made nicer to avoid leaking the abstraction.
-
 #### Automatic Extension Generation with `@ops`
 
 To simplify the process of defining extension methods, the library provides an `@ops` annotation that automatically generates extension methods for all methods in a class. This uses an sbt source generator that runs during compilation.
-
-**How it works:**
 
 1. Annotate your class with `@ops`:
 ```scala
@@ -139,20 +135,6 @@ def method[D1 <: Tuple, D2 <: Tuple](
 ): Restricted[Result, Tuple.Concat[D1, Tuple.Concat[D2, D]]]
 ```
 
-**Implicit Conversion for Plain Values:**
-
-Plain values are automatically converted to `Restricted[T, EmptyTuple]`, allowing you to pass both tracked and untracked values:
-
-```scala
-val result = LinearFn.apply(Tuple1(person))(refs =>
-  // "Alicia" is implicitly converted to Restricted[String, EmptyTuple]
-  val updated = refs._1.withName("Alicia")
-  Tuple1(updated)
-)
-```
-
-Since `Tuple.Concat[EmptyTuple, D] = D`, plain values don't affect the dependency type.
-
 **The `@unrestricted` Annotation:**
 
 Mark parameters with `@unrestricted` to exclude them from dependency tracking:
@@ -186,6 +168,20 @@ The generator creates one file per `@ops`-annotated class:
 
 To avoid naming conflicts, extensions are wrapped in class-specific objects (e.g., `TestPersonOps`, `ExampleOps`).
 
+**Implicit Conversion for Plain Values:**
+
+Plain values are automatically converted to `Restricted[T, EmptyTuple]`, allowing you to pass both tracked and untracked values:
+
+```scala
+val result = LinearFn.apply(Tuple1(person))(refs =>
+  // "Alicia" is implicitly converted to Restricted[String, EmptyTuple]
+  val updated = refs._1.withName("Alicia")
+  Tuple1(updated)
+)
+```
+
+Since `Tuple.Concat[EmptyTuple, D] = D`, plain values don't affect the dependency type.
+
 ### 2. RestrictedDynamic
 
 Uses Scala's `Dynamic` trait for runtime method dispatch. 
@@ -217,16 +213,16 @@ Uses `Dynamic` trait with Scala 3 macros for compile-time type checking.
 ```scala
 import RestrictedDynamicMacros.LinearFn
 
-val result = LinearFn.apply((alice, bob))(refs =>
-  val name = refs._1.name          // Compile-time checked via macro
+val result = LinearFn.apply((1, 2))(refs =>
+  val a1 = refs._1.toDouble          // Compile-time checked via macro
   val badField = refs._1.typo      // Compile error!
-  (name, refs._2.age)
+  (a1, refs._2)
 )
 
 // Method calls with Restricted arguments automatically track dependencies
-val combined = LinearFn.apply((alice, bob))(refs =>
-  val person = refs._1.combine(refs._2)  // Dependencies: (1, 0)
-  (person, person)  // OK - person captures both dependencies
+val combined = LinearFn.apply((1, 2))(refs =>
+  val add = refs._1 + refs._2 // Dependencies: (1, 0)
+  (add, add)  // OK - person captures both dependencies
 )
 ```
 
@@ -258,7 +254,7 @@ val combined = LinearFn.apply((alice, bob))(refs =>
 ```
 
 ## FAQ
-1. Why don't we use `map`/graded applicative functors?
+1. Why don't we use `map`/graded applicative functors to wrap linear types?
  
 > Haskell doesn't have to worry about side effects. If we use a `map` function that exposes a term of the type 
  wrapped in the linear type, for example `Int`, users could pass the term to an outside function that takes `Int`. 
@@ -291,11 +287,12 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  > **Built-in containers** like `List`, `Option`, and `Vector` are supported out-of-the-box. When returned from a linear
  function, `List[Restricted[T, D]]` is automatically lifted into `Restricted[List[T], D]`. This is handled by match types
  in `LinearFnBase.scala` and works at arbitrary nesting depths (`List[List[Restricted[T, D]]]`, etc.).
- Implicit conversions won't help here because the linearity match types will fail before implicits are considered.
 
  > **User-defined containers** can be made liftable by:
- > 1. Implementing the `Liftable[F[_]]` trait for your container type
+ > 1. Implementing the `Liftable[F[_]]` functor trait for your container type
  > 2. Calling `.lift` when returning wrapped Restricted values
+
+ > Implicit conversions won't help here because the linearity match types will fail before implicits are considered.
  >
  > Example:
  > ```scala
