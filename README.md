@@ -1,14 +1,25 @@
 # LinearFn - Linear Functions in Scala 3
 
-A Scala 3 library for enforcing **linearity** at compile time at the function level without modifying the compiler 
+A Scala 3 library for enforcing **linearity** at compile time at the function level without modifying the compiler
 itself. Can be used for an embedded DSL but also regular Scala functions.
 
-We use the following definition of linearity:
-For a function with _n_ arguments and _n_ return values, each argument will be present a maximum of once **per return value** 
-but must be present at least one across all return values. 
-It's fairly easy to add another implementation of `linearFn` that uses the definition 
-of linearity that requires that each argument appears exactly once across all return values, but we use the first 
-because it's more immediately useful for our use cases.
+## What is Linearity?
+
+This library enforces two complementary forms of linearity:
+
+1. **Traditional linear types**: Individual methods can be marked `@consumed` to indicate they "use up" 
+    their receiver. Within a function scope, a `@consumed` method can be called at most once on any value, preventing 
+    use-after-consumption errors. This is the classical understanding of linear types within a region (the function body),
+    useful for resource management (file handles must be closed exactly once, transactions must be committed or rolled 
+    back exactly once, etc.).
+
+2. **Multi-argument, multi-return-value linear functions**: For functions with _n_ arguments and _n_ return values, 
+    each argument flows linearly through the function to the return values. 
+    Specifically, each argument appears **at most once per return value** (affine property) and **at least once across 
+    all return values** (relevance property).
+    This definition of linearity is concerned with dependency relations across linear types and is useful for tracking 
+    linear recursion patterns, e.g., mutually recursive relations between linear types that must still maintain a 
+    linear relation.
 
 ## Usage
 
