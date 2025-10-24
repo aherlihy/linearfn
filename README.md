@@ -1,9 +1,9 @@
 # LinearFn - Linear Functions in Scala 3
 
 A Scala 3 library for enforcing **linearity** at compile time at the function level without modifying the compiler
-itself. Can be used for an embedded DSL but also regular Scala functions.
+itself. Can be used for an embedded DSL but also regular Scala functions. Example case studies are located in `test/casestudies`.
 
-## What is Linearity?
+## Linear Functions
 
 This library enforces two complementary forms of linearity:
 
@@ -62,18 +62,16 @@ LinearFn.apply((alice, bob))(refs =>
 )
 ```
 
-## Implementations
+## Implementation
 
-This library provides three implementations of linear functions, each with different trade-offs.
-
-
-### 1. RestrictedSelectable
+### RestrictedSelectable
 
 Uses Scala 3's `Selectable` trait with structural types.
 
 - **Linear** - linearity is enforced at the type-level. There are two drawbacks: (1) arguments passed to 
     linear functions must be product types, and (2) users must define extension methods for each field/method used in the body of
     the linear function, however this allows for more flexibility since arbitrary arguments can be marked as @unrestricted.
+    See FAQ for discussion on alternative implementations.
 - **Type safe** - field/method names checked at compile time
 
 ```scala
@@ -155,7 +153,7 @@ val result = LinearFn.apply((person1, person2))(refs =>
 
 **Dependency Tracking:**
 
-All method parameters are tracked by default. Each parameter accepts `Restricted[T, D_n]` types, and their dependencies are concatenated in the result type:
+All method parameters are tracked by default.
 
 ```scala
 def method(arg1: T1, arg2: T2): Result
@@ -211,7 +209,113 @@ The `@ops` generator supports three parameter tracking modes:
    - You want to track what the function returns, not the function object
    - Common in DSLs with `map`/`flatMap`/`filter` operations
 
-**Examples:**
+4. **`@consumed` and `@unconsumed`** - Method consumption tracking:
+
+   Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
+   - `close()` on a file handle
+   - `freeze()` on a mutable array
+   - `commit()` or `rollback()` on a transaction
+
+   The linearity system tracks consumption state using a third type parameter `C <: Tuple` on `Restricted[A, D, C]`:
+   - `C = EmptyTuple`: Value is unconsumed (can call regular operations)
+   - `C = Tuple1[true]`: Value is consumed (limited operations allowed)
+
+   **Default (no annotation)**: Requires unconsumed receiver, returns unconsumed value
+   ```scala
+   def write(i: Int, a: A): MArray[A]
+   // Generated:
+   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+   //   def write(...): Restricted[MArray[A], ..., EmptyTuple]
+   ```
+
+   **`@consumed`**: Requires unconsumed receiver, returns consumed value
+   ```scala
+   @consumed
+   def freeze(): Array[A]
+   // Generated:
+   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
+   ```
+
+   **`@unconsumed`**: Accepts any consumption state, preserves that state
+   ```scala
+   @unconsumed
+   def size(): (MArray[A], Int)
+   // Generated:
+   // extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
+   //   def size(): Restricted[(MArray[A], Int), D, C]
+   ```
+
+**Consumption Tracking Examples:**
+
+```scala
+@ops
+case class MArray[A](private val buf: Array[A]):
+  // Default: unconsumed → unconsumed
+  def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
+
+  // @unconsumed: any → any (preserves state)
+  @unconsumed
+  def size(): (MArray[A], Int) = (this, buf.length)
+
+  // @consumed: unconsumed → consumed
+  @consumed
+  def freeze(): Array[A] = buf.clone()
+
+// ✓ OK: write, then freeze
+LinearFn.apply(Tuple1(arr))(refs =>
+  val updated = refs._1.write(0, 10)  // EmptyTuple → EmptyTuple
+  val frozen = updated.freeze()       // EmptyTuple → Tuple1[true]
+  Tuple1(frozen)
+)
+
+// ✓ OK: size can be called before freeze
+LinearFn.apply(Tuple1(arr))(refs =>
+  val (arr1, sz) = refs._1.size()     // Unconsumed → unconsumed
+  val frozen = arr1.freeze()          // Unconsumed → consumed
+  Tuple1(frozen)
+)
+
+// ✓ OK: size can be called after freeze (because @unconsumed)
+LinearFn.apply(Tuple1(arr))(refs =>
+  val consumed = refs._1.freeze()     // Unconsumed → consumed
+  val (arr2, sz) = consumed.size()    // Consumed → consumed (@unconsumed preserves)
+  Tuple1(arr2)
+)
+
+// ✗ ERROR: Can't write to consumed value
+LinearFn.apply(Tuple1(arr))(refs =>
+  val consumed = refs._1.freeze()     // Unconsumed → consumed
+  val updated = consumed.write(0, 10) // ERROR: write requires EmptyTuple
+  Tuple1(updated)
+)
+
+// ✗ ERROR: Can't freeze twice
+LinearFn.apply(Tuple1(arr))(refs =>
+  val frozen = refs._1.freeze()       // Unconsumed → consumed
+  val frozen2 = frozen.freeze()       // ERROR: freeze requires EmptyTuple
+  Tuple1(frozen2)
+)
+```
+
+Use `applyConsumed` to require that all arguments are consumed:
+
+```scala
+val result = LinearFn.applyConsumed(Tuple1(arr))(refs =>
+  val frozen = refs._1.freeze()       // C = Tuple1[true]
+  Tuple1(frozen)                      // OK: frozen is consumed
+)
+
+// ERROR: write doesn't consume, so this fails
+LinearFn.applyConsumed(Tuple1(arr))(refs =>
+  val updated = refs._1.write(0, 10)  // C = EmptyTuple (not consumed!)
+  Tuple1(updated)                     // ERROR: must be consumed
+)
+```
+
+**Note:** Currently, method parameters ignore consumption state - both consumed and unconsumed arguments are accepted. This may be refined in future versions.
+
+**Parameter Tracking Examples:**
 
 ```scala
 @ops
@@ -286,77 +390,6 @@ val result = LinearFn.apply(Tuple1(person))(refs =>
 
 Since `Tuple.Concat[EmptyTuple, D] = D`, plain values don't affect the dependency type.
 
-### 2. RestrictedDynamic
-
-Uses Scala's `Dynamic` trait for runtime method dispatch. 
-
-- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is
-  considered a "use" of both arguments.
-- **Not type safe** - field/method names are resolved at runtime (so useless but works for demonstration purposes)
-- **Works with all types** - no restrictions on input types or requirement that users annotate their classes.
-
-```scala
-import RestrictedDynamic.LinearFn
-
-val result = LinearFn.apply((alice, bob))(refs =>
-  val name = refs._1.name        // Runtime dispatch
-  val badField = refs._1.typo    // Compiles, fails at runtime :(
-  (name, refs._2.age)
-)
-```
-### 2A. RestrictedDynamic + Macros
-
-Uses `Dynamic` trait with Scala 3 macros for compile-time type checking.
-
-- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is 
- considered a "use" of both arguments. 
-- **Type safe** - field/method existence verified at compile time via macros
-- **Works with all types** - no restrictions on input types
-- **Requires macros** - more complex implementation, requires reflection.
-
-```scala
-import RestrictedDynamicMacros.LinearFn
-
-val result = LinearFn.apply((1, 2))(refs =>
-  val a1 = refs._1.toDouble          // Compile-time checked via macro
-  val badField = refs._1.typo      // Compile error!
-  (a1, refs._2)
-)
-
-// Method calls with Restricted arguments automatically track dependencies
-val combined = LinearFn.apply((1, 2))(refs =>
-  val add = refs._1 + refs._2 // Dependencies: (1, 0)
-  (add, add)  // OK - person captures both dependencies
-)
-```
-
-### 2B. RestrictedDynamic + Quotes 
-
-Uses `Dynamic` trait with Scala 3 quotes & splices for AST inspection + compile-time type checking.
-
-- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is
-  considered a "use" of both arguments.
-- **Type safe** - field/method existence verified at compile time via quotes + splices, although right now it doesn't 
- work for overloaded methods due to Select.unique, but that may be fixable.
-- **Works with all types** - no restrictions on input types
-- **Requires quotes** - more complex implementation.
-
-```scala
-import RestrictedDynamicQuotes.LinearFn
-
-val result = LinearFn.apply((alice, bob))(refs =>
-  val name = refs._1.name          // Compile-time checked via macro
-  val badField = refs._1.typo      // Compile error!
-  (name, refs._2.age)
-)
-
-// Method calls with Restricted arguments automatically track dependencies
-val combined = LinearFn.apply((alice, bob))(refs =>
-  val person = refs._1.combine(refs._2)  // Dependencies: (1, 0)
-  (person, person)  // OK - person captures both dependencies
-)
-```
-
 ## FAQ
 1. Why don't we use `map`/graded applicative functors to wrap linear types?
  
@@ -369,24 +402,15 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  functions. Using `map` would require users to change their programming style significantly, however there is some 
  precedent in Scala for this style and the alternative just requires ahead-of-time declaration of methods, so it's a trade-off.
 
-2. For Selectable, `Fields` works out-of-the-box, but methods are problematic. 
-    Alternatives for Selectable requiring users to declare methods ahead-of-time:
+2. How can side effects be prevented if Scala is not purely functional?
+> Assuming that users do not call `.unsafe` unwrap functions in the body of a linear function, side effects are prevented 
+ by (1) having all linear types wrapped in the `Restricted` type (see FAQ#1), and (2) staging the computation: 
+ operations on linear types are wrapped in lambdas that are stored in the `Restricted` type. 
+ Only terms returned by the linear function body are executed, so operations that are not returned are never executed.
+ As users are required to annotate any methods that consume the value with @consumed, all operations on linear types 
+ are tracked.
 
-> 1. If the user could define structural refinements that could be manually applied to the Restricted type, that 
- would mean that `applyDynamic` would work for those functions, which would make things much easier.
-
-> 2. We can use a macro annotation to generate the extension methods automatically for a given type, however the ergonomics 
- are a bit weird: either the compiler generates them and the user needs to copy them manually into their codebase, or 
- we use ScalaMeta to apply and generate these extension methods ahead-of-time. 
-
-3. Passing non-restricted terms to methods of Restricted types in the body of linear functions (e.g., refs._1.method(5))
-
-> This is possible, for example if you want to pass an integer to a method of a Restricted type.
- Implicit conversions from plain values to `Restricted[T, EmptyTuple]` (for Selectable so far) allow users
- to pass plain values to methods that expect `Restricted` arguments. Because the dependency type of the conversion 
- is `EmptyTuple`, it doesn't affect linearity tracking.
-
-4. Returning types that nest Restricted types, e.g., `List[Restricted[T, D]]`.
+3. Returning types that nest Restricted types, e.g., `List[Restricted[T, D]]`.
 
  > **Built-in containers** like `List`, `Option`, and `Vector` are supported out-of-the-box. When returned from a linear
  function, `List[Restricted[T, D]]` is automatically lifted into `Restricted[List[T], D]`. This is handled by match types
@@ -411,125 +435,7 @@ val combined = LinearFn.apply((alice, bob))(refs =>
  > )
  > ```
 
-5. **Consumption Tracking with `@consumed` and `@unconsumed` Annotations:**
-
-Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
- - `close()` on a file handle
- - `freeze()` on a mutable array
- - `commit()` or `rollback()` on a transaction
-
-Our linearity system now tracks consumption state using a third type parameter `C <: Tuple` on `Restricted[A, D, C]`:
-- `C = EmptyTuple`: Value is unconsumed (can call regular operations)
-- `C = Tuple1[true]`: Value is consumed (limited operations allowed)
-
-**Three Method Annotations:**
-
-1. **Default (no annotation)**: Requires unconsumed receiver, returns unconsumed value
-   ```scala
-   def write(i: Int, a: A): MArray[A]
-   // Generated:
-   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
-   //   def write(...): Restricted[MArray[A], ..., EmptyTuple]
-   ```
-
-2. **`@consumed`**: Requires unconsumed receiver, returns consumed value
-   ```scala
-   @consumed
-   def freeze(): Array[A]
-   // Generated:
-   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
-   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
-   ```
-
-3. **`@unconsumed`**: Accepts any consumption state, preserves that state
-   ```scala
-   @unconsumed
-   def size(): (MArray[A], Int)
-   // Generated:
-   // extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
-   //   def size(): Restricted[(MArray[A], Int), D, C]
-   ```
-
-**Example Usage:**
-
-```scala
-@ops
-case class MArray[A](private val buf: Array[A]):
-  // Default: unconsumed → unconsumed
-  def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
-
-  // @unconsumed: any → any (preserves state)
-  @unconsumed
-  def size(): (MArray[A], Int) = (this, buf.length)
-
-  // @consumed: unconsumed → consumed
-  @consumed
-  def freeze(): Array[A] = buf.clone()
-
-// ✓ OK: write, then freeze
-LinearFn.apply(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  // EmptyTuple → EmptyTuple
-  val frozen = updated.freeze()       // EmptyTuple → Tuple1[true]
-  Tuple1(frozen)
-)
-
-// ✓ OK: size can be called before freeze
-LinearFn.apply(Tuple1(arr))(refs =>
-  val (arr1, sz) = refs._1.size()     // Unconsumed → unconsumed
-  val frozen = arr1.freeze()          // Unconsumed → consumed
-  Tuple1(frozen)
-)
-
-// ✓ OK: size can be called after freeze (because @unconsumed)
-LinearFn.apply(Tuple1(arr))(refs =>
-  val consumed = refs._1.freeze()     // Unconsumed → consumed
-  val (arr2, sz) = consumed.size()    // Consumed → consumed (@unconsumed preserves)
-  Tuple1(arr2)
-)
-
-// ✗ ERROR: Can't write to consumed value
-LinearFn.apply(Tuple1(arr))(refs =>
-  val consumed = refs._1.freeze()     // Unconsumed → consumed
-  val updated = consumed.write(0, 10) // ERROR: write requires EmptyTuple
-  Tuple1(updated)
-)
-
-// ✗ ERROR: Can't freeze twice
-LinearFn.apply(Tuple1(arr))(refs =>
-  val frozen = refs._1.freeze()       // Unconsumed → consumed
-  val frozen2 = frozen.freeze()       // ERROR: freeze requires EmptyTuple
-  Tuple1(frozen2)
-)
-```
-
-**Returning Consumed Values:**
-
-Use `applyConsumed` to require that all arguments are consumed:
-
-```scala
-val result = LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val frozen = refs._1.freeze()       // C = Tuple1[true]
-  Tuple1(frozen)                      // OK: frozen is consumed
-)
-
-// ERROR: write doesn't consume, so this fails
-LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  // C = EmptyTuple (not consumed!)
-  Tuple1(updated)                     // ERROR: must be consumed
-)
-```
-
-**Argument Consumption (Future Work):**
-
-Currently, method parameters ignore consumption state - both consumed and unconsumed arguments are accepted. For example:
-```scala
-// Both work, even though other has different consumption states
-def combine(other: MArray[A]): MArray[A]
-```
-
-This may be refined in future versions to allow consuming or requiring specific consumption states for arguments.
-
-6. **Relationship to Traditional Linear Types:**
+4. **Relationship to Traditional Linear Types:**
 
 > Our definition of linearity is closer to scoped/region-based linear types than linear Haskell's "lineary on function types". 
 >
@@ -543,9 +449,75 @@ This may be refined in future versions to allow consuming or requiring specific 
 >  // ERROR: refs._1 not used (no dependency in output)
 >  LinearFn.apply(Tuple1(file))(refs => Tuple1(42))
 >  ```
->
-> - **With `@consumed`**: Adds state tracking orthogonal to linearity
->- **Linearity** = dependency appears in output types (unchanged)
-> - **Consumed** = operations no longer available on this value (new)
->
-> Both would be enforced simultaneously. Consumed values still must contribute to the output.
+
+5. **Alternative Implementations:**
+
+This library also provides alternative implementations based on Scala's `Dynamic` trait.
+
+**RestrictedDynamic**
+
+Uses Scala's `Dynamic` trait for runtime method dispatch.
+
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is considered a "use" of both arguments.
+- **Not type safe** - field/method names are resolved at runtime (so useless, but POC)
+- **Works with all types** - no restrictions on input types or requirement that users annotate their classes.
+
+```scala
+import RestrictedDynamic.LinearFn
+
+val result = LinearFn.apply((alice, bob))(refs =>
+  val name = refs._1.name        // Runtime dispatch
+  val badField = refs._1.typo    // Compiles, fails at runtime :(
+  (name, refs._2.age)
+)
+```
+
+**RestrictedDynamic + Macros**
+
+Uses `Dynamic` trait with Scala 3 macros for compile-time type checking.
+
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is considered a "use" of both arguments.
+- **Type safe** - field/method existence verified at compile time via macros
+- **Works with all types** - no restrictions on input types
+- **Requires macros** - more complex implementation, requires reflection.
+
+```scala
+import RestrictedDynamicMacros.LinearFn
+
+val result = LinearFn.apply((1, 2))(refs =>
+  val a1 = refs._1.toDouble          // Compile-time checked via macro
+  val badField = refs._1.typo      // Compile error!
+  (a1, refs._2)
+)
+
+// Method calls with Restricted arguments automatically track dependencies
+val combined = LinearFn.apply((1, 2))(refs =>
+  val add = refs._1 + refs._2 // Dependencies: (1, 0)
+  (add, add)  // OK - person captures both dependencies
+)
+```
+
+**RestrictedDynamic + Quotes**
+
+Uses `Dynamic` trait with Scala 3 quotes & splices for AST inspection + compile-time type checking.
+
+- **Linear** - linearity is enforced but not customizable: any method of an argument that takes another argument is considered a "use" of both arguments.
+- **Type safe** - field/method existence verified at compile time via quotes + splices, although right now it doesn't work for overloaded methods due to Select.unique, but that may be fixable.
+- **Works with all types** - no restrictions on input types
+- **Requires quotes** - more complex implementation.
+
+```scala
+import RestrictedDynamicQuotes.LinearFn
+
+val result = LinearFn.apply((alice, bob))(refs =>
+  val name = refs._1.name          // Compile-time checked via macro
+  val badField = refs._1.typo      // Compile error!
+  (name, refs._2.age)
+)
+
+// Method calls with Restricted arguments automatically track dependencies
+val combined = LinearFn.apply((alice, bob))(refs =>
+  val person = refs._1.combine(refs._2)  // Dependencies: (1, 0)
+  (person, person)  // OK - person captures both dependencies
+)
+```
