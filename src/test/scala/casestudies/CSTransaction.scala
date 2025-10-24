@@ -1,4 +1,4 @@
-package test
+package test.casestudies
 
 import linearfn.{ops, consumed}
 
