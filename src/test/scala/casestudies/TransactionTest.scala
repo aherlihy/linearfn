@@ -6,19 +6,19 @@ import scala.annotation.experimental
 import test.TestUtils
 
 /**
- * Tests for CSTransaction case study: Transaction Protocol
+ * Tests for Transaction case study: Transaction Protocol
  *
  * Demonstrates: begin → insert/update* → commit/rollback pattern
  * Key: ONE LinearFn scope per test, applyConsumed ensures commit/rollback
  */
 @experimental
-class CSTransactionTest extends FunSuite:
+class TransactionTest extends FunSuite:
   import TestUtils.*
 
   test("Transaction protocol: insert → commit (applyConsumed)") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
-    val tx = CSTransaction.begin()
+    val tx = Transaction.begin()
 
     // applyConsumed: ensures commit() or rollback() is called
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(tx))(refs =>
@@ -31,9 +31,9 @@ class CSTransactionTest extends FunSuite:
   }
 
   test("Transaction protocol: insert → rollback (applyConsumed)") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
-    val tx = CSTransaction.begin()
+    val tx = Transaction.begin()
 
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(tx))(refs =>
       val tx2 = refs._1.insert("users", "Bob, 25")
@@ -45,9 +45,9 @@ class CSTransactionTest extends FunSuite:
   }
 
   test("Transaction protocol: multiple operations → commit") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
-    val tx = CSTransaction.begin()
+    val tx = Transaction.begin()
 
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(tx))(refs =>
       val tx2 = refs._1
@@ -62,13 +62,13 @@ class CSTransactionTest extends FunSuite:
   }
 
   test("NEGATIVE: transaction must be committed or rolled back") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
     val obtained = compileErrors("""
-      import CSTransactionOps.*
+      import TransactionOps.*
       import linearfn.RestrictedSelectable
 
-      val tx = CSTransaction.begin()
+      val tx = Transaction.begin()
 
       RestrictedSelectable.LinearFn.applyConsumed(Tuple1(tx))(refs =>
         val tx2 = refs._1.insert("users", "Data")
@@ -80,13 +80,13 @@ class CSTransactionTest extends FunSuite:
   }
 
   test("NEGATIVE: cannot use transaction after commit") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
     val obtained = compileErrors("""
-      import CSTransactionOps.*
+      import TransactionOps.*
       import linearfn.RestrictedSelectable
 
-      val tx = CSTransaction.begin()
+      val tx = Transaction.begin()
 
       RestrictedSelectable.LinearFn.apply(Tuple1(tx))(refs =>
         val status = refs._1.commit().insert("users", "oops")  // Error: insert after @consumed commit
@@ -98,13 +98,13 @@ class CSTransactionTest extends FunSuite:
   }
 
   test("NEGATIVE: cannot use transaction after rollback") {
-    import CSTransactionOps.*
+    import TransactionOps.*
 
     val obtained = compileErrors("""
-      import CSTransactionOps.*
+      import TransactionOps.*
       import linearfn.RestrictedSelectable
 
-      val tx = CSTransaction.begin()
+      val tx = Transaction.begin()
 
       RestrictedSelectable.LinearFn.apply(Tuple1(tx))(refs =>
         val status = refs._1.rollback().insert("users", "oops")  // Error: insert after @consumed rollback

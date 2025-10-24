@@ -8,16 +8,16 @@ import linearfn.{ops, consumed, unconsumed}
  */
 
 @ops
-case class CSSocket(private var connected: Boolean, private val buffer: collection.mutable.ArrayBuffer[String]):
+case class Socket(private var connected: Boolean, private val buffer: collection.mutable.ArrayBuffer[String]):
   /** Send message. Returns updated socket. */
-  def send(msg: String): CSSocket =
+  def send(msg: String): Socket =
     if !connected then throw new IllegalStateException("Not connected")
     buffer += s"SENT: $msg"
     this
 
   /** Receive message without consuming socket. Returns (socket, message). */
   @unconsumed
-  def receive(): (CSSocket, String) =
+  def receive(): (Socket, String) =
     if !connected then throw new IllegalStateException("Not connected")
     val msg = if buffer.nonEmpty then buffer.remove(0) else "EMPTY"
     (this, msg)
@@ -29,6 +29,6 @@ case class CSSocket(private var connected: Boolean, private val buffer: collecti
     connected = false
     "Connection closed"
 
-object CSSocket:
-  def connect(host: String): CSSocket =
-    CSSocket(true, collection.mutable.ArrayBuffer.empty)
+object Socket:
+  def connect(host: String): Socket =
+    Socket(true, collection.mutable.ArrayBuffer.empty)

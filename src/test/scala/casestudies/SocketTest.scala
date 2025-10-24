@@ -6,19 +6,19 @@ import scala.annotation.experimental
 import test.TestUtils
 
 /**
- * Tests for CSSocket case study: Socket/Connection Protocol
+ * Tests for Socket case study: Socket/Connection Protocol
  *
  * Demonstrates: connect → send/receive* → close pattern
  * Key: ONE LinearFn scope per test, applyConsumed ensures close is called
  */
 @experimental
-class CSSocketTest extends FunSuite:
+class SocketTest extends FunSuite:
   import TestUtils.*
 
   test("Socket protocol: send → close (applyConsumed ensures close)") {
-    import CSSocketOps.*
+    import SocketOps.*
 
-    val socket = CSSocket.connect("localhost:8080")
+    val socket = Socket.connect("localhost:8080")
 
     // applyConsumed: ensures close() is called
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
@@ -31,9 +31,9 @@ class CSSocketTest extends FunSuite:
   }
 
   test("Socket protocol: multiple sends then close") {
-    import CSSocketOps.*
+    import SocketOps.*
 
-    val socket = CSSocket.connect("localhost:8080")
+    val socket = Socket.connect("localhost:8080")
 
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
       val sent = refs._1.send("Msg1").send("Msg2").send("Msg3")
@@ -46,15 +46,15 @@ class CSSocketTest extends FunSuite:
 
 // TODO: handle tuple return values and deconstructing results
 //  test("Socket protocol: send → receive → close (single scope)") {
-//    import CSSocketOps.*
+//    import SocketOps.*
 //
-//    val socket = CSSocket.connect("localhost:8080")
+//    val socket = Socket.connect("localhost:8080")
 //
-//    // Single LinearFn scope: receive returns Restricted[(CSSocket, String), ...]
+//    // Single LinearFn scope: receive returns Restricted[(Socket, String), ...]
 //    // We close without extracting the message content
 //    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
 //      val sent = refs._1.send("Hello")
-//      val receiveResult = sent.receive()  // @unconsumed: Restricted[(CSSocket, String), ...]
+//      val receiveResult = sent.receive()  // @unconsumed: Restricted[(Socket, String), ...]
 //      // Can't destructure inside, so just close
 //      val status = sent.close()  // @consumed
 //      Tuple1(status)
@@ -64,13 +64,13 @@ class CSSocketTest extends FunSuite:
 //  }
 
   test("NEGATIVE: socket must be closed when using applyConsumed") {
-    import CSSocketOps.*
+    import SocketOps.*
 
     val obtained = compileErrors("""
-      import CSSocketOps.*
+      import SocketOps.*
       import linearfn.RestrictedSelectable
 
-      val socket = CSSocket.connect("localhost:8080")
+      val socket = Socket.connect("localhost:8080")
 
       RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
         val sent = refs._1.send("Data")
@@ -82,13 +82,13 @@ class CSSocketTest extends FunSuite:
   }
 
   test("NEGATIVE: cannot use socket after close") {
-    import CSSocketOps.*
+    import SocketOps.*
 
     val obtained = compileErrors("""
-      import CSSocketOps.*
+      import SocketOps.*
       import linearfn.RestrictedSelectable
 
-      val socket = CSSocket.connect("localhost:8080")
+      val socket = Socket.connect("localhost:8080")
 
       RestrictedSelectable.LinearFn.apply(Tuple1(socket))(refs =>
         val status = refs._1.close().send("oops")  // Error: send after @consumed close

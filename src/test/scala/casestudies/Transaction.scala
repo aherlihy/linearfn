@@ -8,15 +8,15 @@ import linearfn.{ops, consumed}
  */
 
 @ops
-case class CSTransaction(private var open: Boolean, private val ops: collection.mutable.ArrayBuffer[String]):
+case class Transaction(private var open: Boolean, private val ops: collection.mutable.ArrayBuffer[String]):
   /** Insert operation. Returns updated transaction. */
-  def insert(table: String, data: String): CSTransaction =
+  def insert(table: String, data: String): Transaction =
     if !open then throw new IllegalStateException("Transaction not open")
     ops += s"INSERT INTO $table VALUES ($data)"
     this
 
   /** Update operation. Returns updated transaction. */
-  def update(table: String, data: String): CSTransaction =
+  def update(table: String, data: String): Transaction =
     if !open then throw new IllegalStateException("Transaction not open")
     ops += s"UPDATE $table SET $data"
     this
@@ -36,6 +36,6 @@ case class CSTransaction(private var open: Boolean, private val ops: collection.
     ops.clear()
     "ROLLED BACK"
 
-object CSTransaction:
-  def begin(): CSTransaction =
-    CSTransaction(true, collection.mutable.ArrayBuffer.empty)
+object Transaction:
+  def begin(): Transaction =
+    Transaction(true, collection.mutable.ArrayBuffer.empty)

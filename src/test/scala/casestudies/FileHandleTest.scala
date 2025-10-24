@@ -6,19 +6,19 @@ import scala.annotation.experimental
 import test.TestUtils
 
 /**
- * Tests for CSFileHandle case study: File Handle Protocol
+ * Tests for FileHandle case study: File Handle Protocol
  *
  * Demonstrates: open → write* → close pattern with proper resource management
  * Key: Each test uses ONE LinearFn scope, applyConsumed ensures close is called
  */
 @experimental
-class CSFileHandleTest extends FunSuite:
+class FileHandleTest extends FunSuite:
   import TestUtils.*
 
   test("File protocol: write → close (applyConsumed ensures close)") {
-    import CSFileHandleOps.*
+    import FileHandleOps.*
 
-    val file = CSFileHandle.open("test.txt")
+    val file = FileHandle.open("test.txt")
 
     // applyConsumed: ensures all arguments are consumed (close is called)
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
@@ -31,9 +31,9 @@ class CSFileHandleTest extends FunSuite:
   }
 
   test("File protocol: multiple writes → close") {
-    import CSFileHandleOps.*
+    import FileHandleOps.*
 
-    val file = CSFileHandle.open("test.txt")
+    val file = FileHandle.open("test.txt")
 
     val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
       val file2 = refs._1.write("Line 1\n").write("Line 2\n").write("Line 3\n")
@@ -46,15 +46,15 @@ class CSFileHandleTest extends FunSuite:
   
 // TODO: handle tuple return values and destructuring results  
 //  test("File protocol: write → read → close (single LinearFn scope)") {
-//    import CSFileHandleOps.*
+//    import FileHandleOps.*
 //
-//    val file = CSFileHandle.open("test.txt")
+//    val file = FileHandle.open("test.txt")
 //
-//    // Single LinearFn scope: read returns Restricted[(CSFileHandle, String), ...]
+//    // Single LinearFn scope: read returns Restricted[(FileHandle, String), ...]
 //    // We can't destructure inside, so we return the tuple then close
 //    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
 //      val written = refs._1.write("Hello World")
-//      val readResult = written.read()  // @unconsumed: Restricted[(CSFileHandle, String), ...]
+//      val readResult = written.read()  // @unconsumed: Restricted[(FileHandle, String), ...]
 //      // readResult is a Restricted wrapper around a tuple
 //      // We need to extract it and close - but we can't destructure inside LinearFn
 //      // So we need a different approach: just close without reading the content
@@ -66,13 +66,13 @@ class CSFileHandleTest extends FunSuite:
 //  }
 
   test("NEGATIVE: file must be closed when using applyConsumed") {
-    import CSFileHandleOps.*
+    import FileHandleOps.*
 
     val obtained = compileErrors("""
-      import CSFileHandleOps.*
+      import FileHandleOps.*
       import linearfn.RestrictedSelectable
 
-      val file = CSFileHandle.open("test.txt")
+      val file = FileHandle.open("test.txt")
 
       RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
         val written = refs._1.write("Data")
@@ -84,13 +84,13 @@ class CSFileHandleTest extends FunSuite:
   }
 
   test("NEGATIVE: cannot use file after close") {
-    import CSFileHandleOps.*
+    import FileHandleOps.*
 
     val obtained = compileErrors("""
-      import CSFileHandleOps.*
+      import FileHandleOps.*
       import linearfn.RestrictedSelectable
 
-      val file = CSFileHandle.open("test.txt")
+      val file = FileHandle.open("test.txt")
 
       RestrictedSelectable.LinearFn.apply(Tuple1(file))(refs =>
         val status = refs._1.close().write("oops")  // Error: write after @consumed close
