@@ -20,7 +20,7 @@ final case class MArray[A: ClassTag](private val buf: Array[A]):
     * Can be returned twice to satisfy linearity (2 inputs → 2 outputs).
     * Marked @unconsumed so it can be called on consumed or unconsumed receivers.
     * Currently accepts arguments in any consumption state (consumed or unconsumed).
-    * Future work: Could add @unconsumed or @consumed to require specific states for `other`.
+    * Point is to test methods that take arguments of the same type as self and return a value of that type.
     */
   @unconsumed
   def combine(other: MArray[A]): MArray[A] =

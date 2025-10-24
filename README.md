@@ -155,29 +155,102 @@ def method[D1 <: Tuple, D2 <: Tuple](
 ): Restricted[Result, Tuple.Concat[D1, Tuple.Concat[D2, D]]]
 ```
 
-**The `@unrestricted` Annotation:**
+**Parameter Tracking Annotations:**
 
-Mark parameters with `@unrestricted` to exclude them from dependency tracking:
+The `@ops` generator supports three parameter tracking modes:
+
+| Annotation | Applied To | Tracking Behavior | Use Case |
+|------------|-----------|-------------------|----------|
+| _(none)_ | Parameters | Full tracking | Default - track parameter and its dependencies |
+| `@unrestricted` | Parameters | No tracking | Pure values, config, predicates that don't need tracking |
+| `@restrictedFn` | Function parameters | Track return type only | Higher-order functions - track what function returns, not function itself |
+| `@consumed` | Methods | Marks method as consuming receiver | Terminal operations like `close()`, `freeze()` |
+| `@unconsumed` | Methods | Method works on any consumption state | Query methods like `size()` that don't mutate |
+
+**Detailed Tracking Modes:**
+
+1. **Default (no annotation)** - Full parameter tracking:
+   ```scala
+   def combine(other: Example): Example
+   // Generates: other: Restricted[Example, D1, C1]
+   // Dependencies: tracked and concatenated
+   ```
+
+2. **`@unrestricted`** - No tracking:
+   ```scala
+   def combine(@unrestricted config: String): Example
+   // Generates: config: String
+   // Dependencies: not tracked at all
+   ```
+
+   Use `@unrestricted` when parameters:
+   - Should not affect linearity checking
+   - Can be used multiple times
+   - Are pure values or configuration
+
+3. **`@restrictedFn`** - Track function return type only:
+   ```scala
+   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+   // Generates: f: A => Restricted[Query[B], D1, C1]
+   // Dependencies: only the returned Query[B] is tracked
+   ```
+
+   Use `@restrictedFn` for higher-order functions where:
+   - The function itself is a callback/transformer
+   - You want to track what the function returns, not the function object
+   - Common in DSLs with `map`/`flatMap`/`filter` operations
+
+**Examples:**
 
 ```scala
 @ops
-case class Example(value: String):
-  def combine(tracked: Example, @unrestricted config: String): Example =
-    Example(s"$value + ${tracked.value} (config: $config)")
+case class Query[A](data: List[A]):
+  // Default: tracks the entire function parameter
+  def transform(f: A => Query[A]): Query[A] =
+    Query(data.flatMap(a => f(a).data))
+
+  // @restrictedFn: only tracks the Query[B] returned by f
+  def flatMap[B](@restrictedFn f: A => Query[B]): Query[B] =
+    Query(data.flatMap(a => f(a).data))
+
+  // @unrestricted: doesn't track the function at all
+  def map[B](@unrestricted f: A => B): Query[B] =
+    Query(data.map(f))
+
+  // @unrestricted: doesn't track config parameter
+  def filter(@unrestricted predicate: A => Boolean): Query[A] =
+    Query(data.filter(predicate))
+
+// Usage:
+val result = LinearFn.apply((q1, q2))(refs =>
+  // flatMap allows returning refs._2 because only return type is tracked
+  val combined = refs._1.flatMap(x => refs._2)
+
+  // map doesn't track the function at all
+  val mapped = refs._1.map(x => x * 2)
+
+  (combined, mapped)
+)
 ```
 
-Generates:
+**`@restrictedFn` Restrictions:**
+
+The `@restrictedFn` annotation can ONLY be used on single-parameter function types (`A => B`):
+
 ```scala
-def combine[D1 <: Tuple, D2 <: Tuple](
-  tracked: Restricted[Example, D1],
-  config: Restricted[String, D2]
-): Restricted[Example, Tuple.Concat[D1, D]]  // D2 excluded!
+// ✓ VALID: Single-parameter function
+def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+
+// ✗ INVALID: Multi-parameter function
+def combine(@restrictedFn f: (A, B) => C): C
+// Error: "@restrictedFn can only be used on single-parameter functions"
+
+// ✗ INVALID: Non-function parameter
+def process(@restrictedFn config: String): Result
+// Error: "@restrictedFn can only be used on function parameters"
 ```
 
-This allows `@unrestricted` parameters to be:
-- Returned separately without violating linearity
-- Used multiple times in the same function
-- Passed as plain values without affecting type checking
+These errors are caught during sbt source generation and reported as build warnings.
 
 **Generated Files:**
 

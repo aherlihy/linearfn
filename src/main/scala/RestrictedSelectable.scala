@@ -58,10 +58,28 @@ object RestrictedSelectable extends LinearFnBase:
           println(s"inside fn: staged call $name with args: $args")
           val obj = fn()
 
+          // Helper to unwrap Restricted values from function return types
+          // This is needed because @restrictedFn can appear on function parameters like:
+          //   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+          // The generated extension receives: f: A => Restricted[Query[B], D, C]
+          // But the actual method expects: f: A => Query[B]
+          // So we wrap the function to unwrap its Restricted return value
+          def unwrapNested(arg: Any): Any = arg match {
+            case f: Function1[_, _] =>
+              (a: Any) => {
+                val result = f.asInstanceOf[Any => Any](a)
+                result match {
+                  case r: Restricted[_, _, _] => r.execute()
+                  case other => other
+                }
+              }
+            case other => other
+          }
+
           // Execute any Restricted arguments to get their actual values
           val executedArgs = args.productIterator.map {
             case r: Restricted[_, _, _] => r.execute()
-            case other => other
+            case other => unwrapNested(other)
           }.toSeq
 
           // Get all methods with this name

@@ -28,7 +28,7 @@ object OpsExtensionGenerator {
     generatedFiles
   }
 
-  private def parseAndGenerate(sourceFile: File, targetDir: File, log: Logger): Option[File] = {
+  private def parseAndGenerate(sourceFile: File, targetDir: File, log: Logger): Seq[File] = {
     val source = IO.read(sourceFile)
     val tree = source.parse[Source].get
 
@@ -61,12 +61,11 @@ object OpsExtensionGenerator {
     }
 
     if (opsClasses.isEmpty) {
-      return None
+      return Seq.empty
     }
 
-    // Generate extension methods for each @ops class
-    opsClasses.headOption.map { case (className, typeParams, methods) =>
-
+    // Generate extension methods for ALL @ops classes in this file
+    opsClasses.map { case (className, typeParams, methods) =>
       val extensionCode = generateExtensionCode(packageName, className, typeParams, methods)
 
       // Write to target directory
@@ -121,6 +120,16 @@ object OpsExtensionGenerator {
   private def generateMethodExtension(className: String, classTypeParams: Seq[String], typeParamDefs: Seq[String], fullClassName: String, method: Defn.Def): String = {
     val methodName = method.name.value
 
+    // Extract method-level type parameters
+    val methodTypeParams = method.tparams.map { tp =>
+      tp.tbounds match {
+        case Type.Bounds(None, None) => tp.name.value
+        case Type.Bounds(Some(lo), None) => s"${tp.name.value} >: ${lo.toString}"
+        case Type.Bounds(None, Some(hi)) => s"${tp.name.value} <: ${hi.toString}"
+        case Type.Bounds(Some(lo), Some(hi)) => s"${tp.name.value} >: ${lo.toString} <: ${hi.toString}"
+      }
+    }
+
     // Get return type - handle both explicit and inferred types
     val returnType = method.decltpe match {
       case Some(tpe) => tpe.toString
@@ -130,11 +139,44 @@ object OpsExtensionGenerator {
       }
     }
 
-    // Check for @unrestricted annotations on parameters
+    // Check for @unrestricted annotation on parameters
     def hasUnrestrictedAnnot(param: Term.Param): Boolean = {
       param.mods.exists {
         case Mod.Annot(Init(Type.Name("unrestricted"), _, _)) => true
         case _ => false
+      }
+    }
+
+    // Check for @restrictedFn annotation on parameters
+    def hasRestrictedFnAnnot(param: Term.Param): Boolean = {
+      param.mods.exists {
+        case Mod.Annot(Init(Type.Name("restrictedFn"), _, _)) => true
+        case _ => false
+      }
+    }
+
+    // Transform a function type to wrap its return type in Restricted
+    // Only works for single-parameter functions (A => B)
+    def transformFunctionReturnType(tpe: Type, index: Int): String = {
+      tpe match {
+        case Type.Function(params, res) if params.size == 1 =>
+          // Single-parameter function - wrap return type
+          val paramType = params.head.toString
+          val returnType = res.toString
+          s"$paramType => RestrictedSelectable.Restricted[$returnType, D${index + 1}, C${index + 1}]"
+        case Type.Function(params, _) =>
+          // Multi-parameter function - error
+          throw new IllegalStateException(
+            s"@restrictedFn can only be used on single-parameter functions (A => B), not on ${tpe.toString} " +
+            s"which has ${params.size} parameters. " +
+            s"Valid usage: def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]"
+          )
+        case _ =>
+          // Not a function - error
+          throw new IllegalStateException(
+            s"@restrictedFn can only be used on function parameters, not on ${tpe.toString}. " +
+            s"Valid usage: def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]"
+          )
       }
     }
 
@@ -188,35 +230,70 @@ object OpsExtensionGenerator {
     }
 
     if (termParams.isEmpty) {
-      // No parameters
-      val methodDef = s"""def $methodName(): RestrictedSelectable.Restricted[$returnType, D, $resultConsumptionType] =
-         |      p.stageCall[$returnType, D, $resultConsumptionType]("$methodName", EmptyTuple)""".stripMargin
+      // No parameters - just include method type parameters
+      val methodTypeParamsStr = if (methodTypeParams.isEmpty) "" else s"[${methodTypeParams.mkString(", ")}]"
 
-      s"""extension $extensionTypeParams(p: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
+      val methodDef = s"""def $methodName$methodTypeParamsStr(): RestrictedSelectable.Restricted[$returnType, D, $resultConsumptionType] =
+         |      self.stageCall[$returnType, D, $resultConsumptionType]("$methodName", EmptyTuple)""".stripMargin
+
+      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
          |    $methodDef""".stripMargin
     } else {
-      // Generate type parameters for each parameter's dependencies and consumption states
-      val typeParamsList = termParams.zipWithIndex.flatMap { case (_, i) =>
-        Seq(s"D${i + 1} <: Tuple", s"C${i + 1} <: Tuple")
+      // Check each parameter for annotations
+      val paramInfos = termParams.zipWithIndex.map { case (p, i) =>
+        val isRestrictedFn = hasRestrictedFnAnnot(p)
+        val isUnrestricted = hasUnrestrictedAnnot(p)
+        (p, i, isRestrictedFn, isUnrestricted)
       }
-      val typeParams = s"[${typeParamsList.mkString(", ")}]"
 
-      // All parameters accept Restricted types (implicit conversion handles plain values)
-      val paramList = termParams.zipWithIndex.map { case (p, i) =>
-        val paramType = p.decltpe.get.toString
-        s"${p.name.value}: RestrictedSelectable.Restricted[$paramType, D${i + 1}, C${i + 1}]"
+      // Check if a type is a function type
+      def isFunctionType(tpe: Type): Boolean = tpe match {
+        case _: Type.Function => true
+        case _ => false
+      }
+
+      // Generate type parameters based on parameter tracking needs
+      val paramTypeParams = paramInfos.flatMap { case (p, i, isRestrictedFn, isUnrestricted) =>
+        val paramType = p.decltpe.get
+        if (isUnrestricted && !isRestrictedFn && isFunctionType(paramType)) {
+          // @unrestricted function - uses implicit conversion, no type params
+          Nil
+        } else {
+          // Everything else needs type params (tracked params, product types, @restrictedFn types)
+          Seq(s"D${i + 1} <: Tuple", s"C${i + 1} <: Tuple")
+        }
+      }
+
+      // Combine method type parameters with parameter type parameters
+      val allTypeParams = methodTypeParams ++ paramTypeParams
+      val typeParams = if (allTypeParams.isEmpty) "" else s"[${allTypeParams.mkString(", ")}]"
+
+      // Build parameter list
+      val paramList = paramInfos.map { case (p, i, isRestrictedFn, isUnrestricted) =>
+        val paramName = p.name.value
+        val paramType = p.decltpe.get
+
+        if (isUnrestricted && !isRestrictedFn && isFunctionType(paramType)) {
+          // @unrestricted function - use plain type, implicit conversion handles wrapping
+          s"$paramName: ${paramType.toString}"
+        } else if (isRestrictedFn) {
+          // Has @restrictedFn annotation - transform the function return type
+          s"$paramName: ${transformFunctionReturnType(paramType, i)}"
+        } else {
+          // Default tracked or @unrestricted product - wrap with Restricted
+          s"$paramName: RestrictedSelectable.Restricted[${paramType.toString}, D${i + 1}, C${i + 1}]"
+        }
       }.mkString(", ")
 
-      // Build the result type by concatenating dependencies from non-@unrestricted parameters
-      // The concatenation is right-nested: Tuple.Concat[D1, Tuple.Concat[D2, D]]
-      val trackedParams = termParams.zipWithIndex.filterNot { case (p, _) => hasUnrestrictedAnnot(p) }
+      // Build the result type by concatenating dependencies from tracked parameters
+      val trackedParams = paramInfos.filterNot { case (_, _, _, isUnrestricted) => isUnrestricted }
 
       val resultDepType = if (trackedParams.isEmpty) {
         // All parameters are @unrestricted, so result type is just D
         "D"
       } else {
         // Build right-nested Tuple.Concat for all tracked dependencies
-        val depTypes = trackedParams.map { case (_, i) => s"D${i + 1}" }
+        val depTypes = trackedParams.map { case (_, i, _, _) => s"D${i + 1}" }
         depTypes.foldRight("D")((dep, acc) => s"Tuple.Concat[$dep, $acc]")
       }
 
@@ -227,9 +304,9 @@ object OpsExtensionGenerator {
         s"(${termParams.map(_.name.value).mkString(", ")})"
       }
 
-      s"""extension $extensionTypeParams(p: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
+      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
          |    def $methodName$typeParams($paramList): RestrictedSelectable.Restricted[$returnType, $resultDepType, $resultConsumptionType] =
-         |      p.stageCall[$returnType, $resultDepType, $resultConsumptionType]("$methodName", $argsTuple)""".stripMargin
+         |      self.stageCall[$returnType, $resultDepType, $resultConsumptionType]("$methodName", $argsTuple)""".stripMargin
     }
   }
 }

@@ -9,7 +9,6 @@ import test.TestUtils
  * Tests for FileHandle case study: File Handle Protocol
  *
  * Demonstrates: open → write* → close pattern with proper resource management
- * Key: Each test uses ONE LinearFn scope, applyConsumed ensures close is called
  */
 @experimental
 class FileHandleTest extends FunSuite:

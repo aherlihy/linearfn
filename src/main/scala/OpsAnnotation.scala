@@ -94,3 +94,85 @@ class consumed extends StaticAnnotation
  * @consumed and @unconsumed are mutually exclusive.
  */
 class unconsumed extends StaticAnnotation
+
+/**
+ * Parameter-level annotation for function parameters where the function's return
+ * type should be wrapped in Restricted.
+ *
+ * IMPORTANT RESTRICTION: @restrictedFn can ONLY be used on single-parameter
+ * function types (A => B). It cannot be used on:
+ * - Non-function parameters
+ * - Multi-parameter functions like (A, B) => C
+ *
+ * When `@restrictedFn` is applied to a function parameter:
+ * - The function itself is NOT wrapped in Restricted
+ * - The function's return type IS wrapped in Restricted
+ * - Dependencies are tracked from the function's return value
+ *
+ * This is useful for higher-order functions where you want to track what the
+ * function returns, but not the function itself.
+ *
+ * Valid usage:
+ * {{{
+ * @ops
+ * class Query[A]:
+ *   // Regular parameter - entire parameter wrapped (default behavior)
+ *   def union(that: Query[A]): Query[A]
+ *
+ *   // Function parameter with @restrictedFn - only return type wrapped
+ *   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+ *
+ *   // Completely unrestricted function
+ *   def map[B](@unrestricted f: A => B): Query[B]
+ * }}}
+ *
+ * Generated extensions:
+ * {{{
+ * // union: entire parameter wrapped (default behavior)
+ * def union[D1 <: Tuple, C1 <: Tuple](
+ *   that: Restricted[Query[A], D1, C1]
+ * ): Restricted[Query[A], Tuple.Concat[D1, D], EmptyTuple]
+ *
+ * // flatMap: function not wrapped, but Query[B] is
+ * def flatMap[B, D1 <: Tuple, C1 <: Tuple](
+ *   f: A => Restricted[Query[B], D1, C1]
+ * ): Restricted[Query[B], Tuple.Concat[D1, D], EmptyTuple]
+ *
+ * // map: nothing wrapped (due to @unrestricted on parameter)
+ * def map[B](f: A => B): Restricted[Query[B], D, EmptyTuple]
+ * }}}
+ *
+ * Invalid usage (will cause build-time errors):
+ * {{{
+ * @ops
+ * class BadExamples[A]:
+ *   // ERROR: @restrictedFn on non-function parameter
+ *   def withOption(@restrictedFn opt: Option[A]): A
+ *
+ *   // ERROR: @restrictedFn on multi-parameter function
+ *   def withMultiParam(@restrictedFn f: (A, B) => C): C
+ * }}}
+ */
+class restrictedFn extends StaticAnnotation
+
+/**
+ * Marks a parameter as NOT requiring a Restricted wrapper in generated extension methods.
+ *
+ * By default, all non-primitive parameters are automatically Restricted (tracked).
+ * Use @unrestricted to opt-out of tracking for specific parameters.
+ *
+ * Example:
+ * ```
+ * def compareAnimals(animal1: Animal, @unrestricted animal2: Animal): Boolean =
+ *   animal1.species == animal2.species
+ * ```
+ *
+ * This generates:
+ * ```
+ * def compareAnimals[D2 <: Tuple](animal1: Animal ~ D2, animal2: Animal): Boolean ~ (Tuple.Concat[D2, D]) =
+ *   p.stageCall[Boolean, Tuple.Concat[D2, D]]("compareAnimals", (animal1, animal2))
+ * ```
+ *
+ * animal1 is tracked (Restricted), animal2 is not (just a regular Animal value).
+ */
+class unrestricted extends StaticAnnotation
