@@ -176,3 +176,45 @@ abstract class LinearFnBase:
       val exec = fns(refsTuple)
       println(exec)
       tupleExecute(exec).asInstanceOf[RT]
+
+    /**
+     * applyMulti - allows arbitrary number of return values (not constrained to match argument count).
+     * Maintains linearity constraints:
+     * - All arguments must appear at least once across all return values
+     * - No argument can appear more than once in any single return value
+     */
+    def applyMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
+    (args: AT)
+    (fns: ToLinearRef[AT] => RQT)
+    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
+    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
+    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
+    (using @implicitNotFound("All return values must have consumption state of length 0 or 1") ev5: AllConsumedStatesAtMostOne[CT] =:= true): RT =
+      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
+      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
+      val exec = fns(refsTuple)
+      println(exec)
+      tupleExecute(exec).asInstanceOf[RT]
+
+    /**
+     * applyConsumedMulti - variant of applyMulti that requires all return values to be consumed.
+     * Allows arbitrary number of return values while ensuring all are consumed exactly once.
+     */
+    def applyConsumedMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
+    (args: AT)
+    (fns: ToLinearRef[AT] => RQT)
+    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
+    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
+    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
+    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
+    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
+    (using @implicitNotFound("All return values must be consumed (consumption state length must be exactly 1)") ev5: AllConsumedStatesExactlyOne[CT] =:= true): RT =
+      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
+      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
+      val exec = fns(refsTuple)
+      println(exec)
+      tupleExecute(exec).asInstanceOf[RT]
