@@ -13,8 +13,8 @@ import Utils.*
  */
 object RestrictedDynamicMacros extends LinearFnBase:
 
-  // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
+  // Implementation-specific Restricted trait - extends RestrictedBase
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Dynamic:
     // Macro-based implementations for compile-time verification
     transparent inline def selectDynamic(inline name: String): Any =
       ${ RestrictedMacros.selectDynamicImpl[A, D, C]('this, 'name) }
@@ -32,6 +32,3 @@ object RestrictedDynamicMacros extends LinearFnBase:
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
-
-  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
-    r.execute()

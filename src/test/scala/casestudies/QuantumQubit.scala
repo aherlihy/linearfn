@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{ops, consumed}
+import linearfn.{ops, consumed, repeatable}
 
 /**
  * Tiny quantum DSL to demonstrate function-local linearity:
@@ -19,15 +19,18 @@ import linearfn.{ops, consumed}
 @ops
 final case class QuantumQubit(id: Int):
   /** Apply Hadamard gate - creates superposition from |0⟩ or |1⟩ */
+  @repeatable
   def hadamard(): QuantumQubit = this
 
-  /** Apply Pauli-X g ate - quantum NOT operation */
+  /** Apply Pauli-X gate - quantum NOT operation */
+  @repeatable
   def x(): QuantumQubit = this
 
   /**
    * Apply CNOT gate with this qubit as control, target as target.
    * Returns (control, target) both potentially entangled.
    */
+  @repeatable
   def cnot(target: QuantumQubit): (QuantumQubit, QuantumQubit) = (this, target)
 
   /**

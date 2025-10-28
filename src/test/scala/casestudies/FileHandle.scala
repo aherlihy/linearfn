@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{ops, consumed, unconsumed}
+import linearfn.{ops, consumed, unconsumed, repeatable}
 
 /**
  * Case Study: File Handle Protocol
@@ -12,6 +12,7 @@ case class FileData(content: String)
 @ops
 case class FileHandle(private var data: FileData, private var closed: Boolean = false):
   /** Write content to file. Returns new handle. */
+  @repeatable
   def write(content: String): FileHandle =
     if closed then throw new IllegalStateException("File already closed")
     data = FileData(data.content + content)

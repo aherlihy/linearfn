@@ -11,8 +11,8 @@ import Utils.*
  */
 object RestrictedDynamicQuotes extends LinearFnBase:
 
-  // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
+  // Implementation-specific Restricted trait - extends RestrictedBase
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Dynamic:
     // Use inline with transparent return type for precise type inference
     transparent inline def selectDynamic(inline name: String): Any =
       ${ selectDynamicQuote[A, D, C]('this, 'name) }
@@ -30,9 +30,6 @@ object RestrictedDynamicQuotes extends LinearFnBase:
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
-
-  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
-    r.execute()
 
   // Inline quote implementation for selectDynamic - builds Select AST directly
   private def selectDynamicQuote[A: Type, D <: Tuple: Type, C <: Tuple: Type](

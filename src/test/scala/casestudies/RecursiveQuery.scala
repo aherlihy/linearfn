@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restrictedFn}
+import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restrictedFn, repeatable}
 
 import scala.NamedTuple.AnyNamedTuple
 
@@ -35,18 +35,22 @@ object Expr:
 // Query-level AST
 @ops
 class Query[A]():
+  @repeatable
   def flatMap[B](@restrictedFn f: Expr.Ref[A] => Query[B]): Query[B] =
     val ref = Expr.Ref[A]()
     Query.FlatMap(this, Expr.Fun(ref, f(ref)))
 
+  @repeatable
   def map[B](@unrestricted f: Expr.Ref[A] => Expr[B]): Query[B] =
     val ref = Expr.Ref[A]()
     Query.Map(this, Expr.Fun(ref, f(ref)))
 
+  @repeatable
   def withFilter(@unrestricted predicate: Expr.Ref[A] => Expr[Boolean]): Query[A] =
     val ref = Expr.Ref[A]()
     Query.Filter[A](this, Expr.Fun(ref, predicate(ref)))
 
+  @repeatable
   def union(that: Query[A]): Query[A] =
     Query.Union[A](this, that)
 

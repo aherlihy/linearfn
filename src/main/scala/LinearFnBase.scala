@@ -10,16 +10,23 @@ import scala.annotation.implicitNotFound
  * - Restricted trait implementation
  * - LinearRef case class implementation
  */
+// Base trait that all Restricted implementations must extend
+// This allows runtime type checking in the abstract base class
+trait RestrictedBase[A, D <: Tuple, C <: Tuple]:
+  def execute(): A
+
 abstract class LinearFnBase:
 
-  // Abstract types to be defined by implementations
-  type Restricted[A, D <: Tuple, C <: Tuple]
+  // Abstract type with upper bound constraint
+  // All implementations must extend RestrictedBase
+  type Restricted[A, D <: Tuple, C <: Tuple] <: RestrictedBase[A, D, C]
 
   // Factory method for creating LinearRef instances
   protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C]
 
   // Execute a Restricted value
-  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A
+  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
+    r.execute()
 
   // Helper match type to extract inner type, dependencies, and consumed state from potentially nested containers
   // Returns (innermost_type, dependencies, consumption_state)
@@ -35,7 +42,8 @@ abstract class LinearFnBase:
 
   // Common match types
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, Tuple1[index], EmptyTuple]]
+    case (elem, index) => Restricted[elem, Tuple1[index], EmptyTuple]
+  ]
 
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
     case EmptyTuple => EmptyTuple
@@ -98,12 +106,13 @@ abstract class LinearFnBase:
     case h *: t => CollateAllDeps[t, CollateDeps[h, D]]
 
   // Helper to recursively execute Restricted values inside nested containers
+  // We can check against RestrictedBase since all Restricted types must extend it
   private def executeNested(value: Any): Any = value match
     // Check for containers BEFORE Restricted to handle nested cases
     case list: List[_] => list.map(executeNested)
     case opt: Option[_] => opt.map(executeNested)
     case vec: Vector[_] => vec.map(executeNested)
-    case r: Restricted[_, _, _] => executeRestricted(r)
+    case r: RestrictedBase[_, _, _] => r.execute()
     case other => other
 
   // Common tupleExecute implementation

@@ -12,8 +12,8 @@ import scala.annotation.implicitNotFound
  */
 object RestrictedDynamic extends LinearFnBase:
 
-  // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple, C <: Tuple] extends Dynamic:
+  // Implementation-specific Restricted trait - extends RestrictedBase
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Dynamic:
     def stageField(name: String): Restricted[A, D, C]
     def stageCall[D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[A, D2, C2]
 
@@ -59,6 +59,3 @@ object RestrictedDynamic extends LinearFnBase:
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
-
-  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
-    r.execute()

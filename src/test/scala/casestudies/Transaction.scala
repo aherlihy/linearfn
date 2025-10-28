@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{ops, consumed}
+import linearfn.{ops, consumed, repeatable}
 
 /**
  * Case Study: Transaction Protocol
@@ -10,12 +10,14 @@ import linearfn.{ops, consumed}
 @ops
 case class Transaction(private var open: Boolean, private val ops: collection.mutable.ArrayBuffer[String]):
   /** Insert operation. Returns updated transaction. */
+  @repeatable
   def insert(table: String, data: String): Transaction =
     if !open then throw new IllegalStateException("Transaction not open")
     ops += s"INSERT INTO $table VALUES ($data)"
     this
 
   /** Update operation. Returns updated transaction. */
+  @repeatable
   def update(table: String, data: String): Transaction =
     if !open then throw new IllegalStateException("Transaction not open")
     ops += s"UPDATE $table SET $data"

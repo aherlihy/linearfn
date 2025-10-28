@@ -14,8 +14,8 @@ import scala.reflect.Selectable.reflectiveSelectable
  */
 object RestrictedSelectable extends LinearFnBase:
 
-  // Implementation-specific Restricted trait
-  trait Restricted[A, D <: Tuple, C <: Tuple] extends Selectable:
+  // Implementation-specific Restricted trait - extends RestrictedBase
+  trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Selectable:
     type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D, C]]
     def stageField(name: String): Restricted[A, D, C]
     def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2]
@@ -142,6 +142,3 @@ object RestrictedSelectable extends LinearFnBase:
   // Implement abstract methods from LinearFnBase
   protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.LinearRef(fn)
-
-  protected def executeRestricted[A, D <: Tuple, C <: Tuple](r: Restricted[A, D, C]): A =
-    r.execute()

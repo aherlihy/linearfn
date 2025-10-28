@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{ops, consumed, unconsumed}
+import linearfn.{ops, consumed, unconsumed, repeatable}
 
 /**
  * Case Study: Socket/Connection Protocol
@@ -10,6 +10,7 @@ import linearfn.{ops, consumed, unconsumed}
 @ops
 case class Socket(private var connected: Boolean, private val buffer: collection.mutable.ArrayBuffer[String]):
   /** Send message. Returns updated socket. */
+  @repeatable
   def send(msg: String): Socket =
     if !connected then throw new IllegalStateException("Not connected")
     buffer += s"SENT: $msg"

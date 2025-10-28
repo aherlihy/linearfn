@@ -1,7 +1,7 @@
 package test
 
 import munit.FunSuite
-import linearfn.{RestrictedSelectable, ops, restrictedFn, unrestricted}
+import linearfn.{RestrictedSelectable, ops, restrictedFn, unrestricted, repeatable}
 import scala.annotation.experimental
 
 /**
@@ -14,16 +14,20 @@ import scala.annotation.experimental
 // Test case for higher-order functions with @restrictedFn
 @ops
 case class TestQuery[A](data: List[A]):
+  @repeatable
   def flatMap[B](@restrictedFn f: A => TestQuery[B]): TestQuery[B] =
     TestQuery(data.flatMap(a => f(a).data))
 
+  @repeatable
   def map[B](@unrestricted f: A => B): TestQuery[B] =
     TestQuery(data.map(f))
 
+  @repeatable
   def filter(@unrestricted p: A => Boolean): TestQuery[A] =
     TestQuery(data.filter(p))
 
   // Regular function (default behavior - entire function wrapped)
+  @repeatable
   def combine[B](f: A => TestQuery[B]): TestQuery[B] =
     TestQuery(data.flatMap(a => f(a).data))
 

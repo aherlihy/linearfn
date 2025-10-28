@@ -180,6 +180,12 @@ object OpsExtensionGenerator {
       }
     }
 
+    // Check for @repeatable annotation on method
+    val isRepeatable = method.mods.exists {
+      case Mod.Annot(Init(Type.Name("repeatable"), _, _)) => true
+      case _ => false
+    }
+
     // Check for @consumed annotation on method
     val isConsumed = method.mods.exists {
       case Mod.Annot(Init(Type.Name("consumed"), _, _)) => true
@@ -192,9 +198,10 @@ object OpsExtensionGenerator {
       case _ => false
     }
 
-    // Ensure @consumed and @unconsumed are mutually exclusive
-    if (isConsumed && isUnconsumed) {
-      throw new IllegalStateException(s"Method $methodName has both @consumed and @unconsumed annotations, which are mutually exclusive")
+    // Ensure annotations are mutually exclusive
+    val annotationCount = Seq(isRepeatable, isConsumed, isUnconsumed).count(identity)
+    if (annotationCount > 1) {
+      throw new IllegalStateException(s"Method $methodName has multiple consumption annotations (@repeatable, @consumed, @unconsumed), which are mutually exclusive")
     }
 
     // Extract all term parameters from all parameter clauses
@@ -206,20 +213,21 @@ object OpsExtensionGenerator {
     }
 
     // Determine the receiver consumption state type
-    // Default and @consumed: EmptyTuple (only unconsumed)
     // @unconsumed: C (any state)
+    // @repeatable, @consumed, default: EmptyTuple (only unconsumed)
     val receiverConsumptionType = if (isUnconsumed) "C" else "EmptyTuple"
 
     // Determine the return value consumption state type
-    // Default: EmptyTuple
-    // @consumed: Tuple1[true]
+    // @repeatable: EmptyTuple (unconsumed → unconsumed)
+    // @consumed or default: Tuple1[true] (unconsumed → consumed)
     // @unconsumed: C (preserves receiver state)
-    val resultConsumptionType = if (isConsumed) {
-      "Tuple1[true]"
-    } else if (isUnconsumed) {
+    val resultConsumptionType = if (isUnconsumed) {
       "C"
-    } else {
+    } else if (isRepeatable) {
       "EmptyTuple"
+    } else {
+      // Default or @consumed: both consume
+      "Tuple1[true]"
     }
 
     // Build extension type parameters based on class type parameters

@@ -166,15 +166,17 @@ def method[D1 <: Tuple, D2 <: Tuple](
 
 **Parameter Tracking Annotations:**
 
-The `@ops` generator supports three parameter tracking modes:
+The `@ops` generator supports annotations to customize how methods and their parameters contribute to linearity tracking. 
 
-| Annotation | Applied To | Tracking Behavior | Use Case |
-|------------|-----------|-------------------|----------|
-| _(none)_ | Parameters | Full tracking | Default - track parameter and its dependencies |
-| `@unrestricted` | Parameters | No tracking | Pure values, config, predicates that don't need tracking |
-| `@restrictedFn` | Function parameters | Track return type only | Higher-order functions - track what function returns, not function itself |
-| `@consumed` | Methods | Marks method as consuming receiver | Terminal operations like `close()`, `freeze()` |
-| `@unconsumed` | Methods | Method works on any consumption state | Query methods like `size()` that don't mutate |
+| Annotation | Applied To | Tracking Behavior                                                         | Use Case                                                                                                   |
+|------------|-----------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| _(none)_ | Parameters | Full tracking                                                             | Default - track parameter and its dependencies                                                             |
+| _(none)_ | Methods | Consumes receiver                                                         | Default - terminal operations that consume the receiver                                                    |
+| `@unrestricted` | Parameters | No tracking                                                               | Pure values, config, predicates that don't need tracking                                                   |
+| `@restrictedFn` | Function parameters | Track return type only                                                    | Higher-order functions - track what function returns, not function itself                                  |
+| `@repeatable` | Methods | Can only be called on unconsumed values but can be called multiple times. | Operations that can be chained: `write()`, `map()`, `flatMap()`                                            |
+| `@consumed` | Methods | Explicit version of default - consumes receiver.                          | Terminal operations like `close()`, `freeze()` (same as no annotation)                                     |
+| `@unconsumed` | Methods | Method works on any consumption state and does not modify reciever.       | Relax constraints for this particular call, good for debugging or helper methods that do not modify state. |
 
 **Detailed Tracking Modes:**
 
@@ -209,7 +211,7 @@ The `@ops` generator supports three parameter tracking modes:
    - You want to track what the function returns, not the function object
    - Common in DSLs with `map`/`flatMap`/`filter` operations
 
-4. **`@consumed` and `@unconsumed`** - Method consumption tracking:
+4. **`@repeatable`, `@consumed`, and `@unconsumed`** - Method consumption tracking:
 
    Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
    - `close()` on a file handle
@@ -220,21 +222,30 @@ The `@ops` generator supports three parameter tracking modes:
    - `C = EmptyTuple`: Value is unconsumed (can call regular operations)
    - `C = Tuple1[true]`: Value is consumed (limited operations allowed)
 
-   **Default (no annotation)**: Requires unconsumed receiver, returns unconsumed value
+   **Default (no annotation)**: Requires unconsumed receiver, returns consumed value
    ```scala
+   def freeze(): Array[A]
+   // Generated:
+   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
+   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
+   ```
+
+   **`@repeatable`**: Requires unconsumed receiver, returns unconsumed value
+   ```scala
+   @repeatable
    def write(i: Int, a: A): MArray[A]
    // Generated:
    // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
    //   def write(...): Restricted[MArray[A], ..., EmptyTuple]
    ```
 
-   **`@consumed`**: Requires unconsumed receiver, returns consumed value
+   **`@consumed`**: Explicit version of default - requires unconsumed receiver, returns consumed value
    ```scala
    @consumed
-   def freeze(): Array[A]
+   def close(): String
    // Generated:
-   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
-   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
+   // extension [D <: Tuple](p: Restricted[FileHandle, D, EmptyTuple])
+   //   def close(): Restricted[String, D, Tuple1[true]]
    ```
 
    **`@unconsumed`**: Accepts any consumption state, preserves that state
@@ -248,18 +259,21 @@ The `@ops` generator supports three parameter tracking modes:
 
 **Consumption Tracking Examples:**
 
+Example taken from Linear Haskell. Say you want a mutable array that you can write to many times, but when you call 
+`freeze()`, you can no longer write to it.
+
 ```scala
 @ops
 case class MArray[A](private val buf: Array[A]):
-  // Default: unconsumed → unconsumed
+  // @repeatable: unconsumed → unconsumed (can be called multiple times)
+  @repeatable
   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
 
   // @unconsumed: any → any (preserves state)
   @unconsumed
   def size(): (MArray[A], Int) = (this, buf.length)
 
-  // @consumed: unconsumed → consumed
-  @consumed
+  // Default: unconsumed → consumed (terminal operation)
   def freeze(): Array[A] = buf.clone()
 
 // ✓ OK: write, then freeze
@@ -302,18 +316,19 @@ Use `applyConsumed` to require that all arguments are consumed:
 
 ```scala
 val result = LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val frozen = refs._1.freeze()       // C = Tuple1[true]
+  val frozen = refs._1.freeze()       // C = Tuple1[true] (default consumes)
   Tuple1(frozen)                      // OK: frozen is consumed
 )
 
-// ERROR: write doesn't consume, so this fails
+// ERROR: write doesn't consume (marked @repeatable), so this fails
 LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  // C = EmptyTuple (not consumed!)
+  val updated = refs._1.write(0, 10)  // C = EmptyTuple (@repeatable doesn't consume)
   Tuple1(updated)                     // ERROR: must be consumed
 )
 ```
 
-**Note:** Currently, method parameters ignore consumption state - both consumed and unconsumed arguments are accepted. This may be refined in future versions.
+**Note:** Currently, the consumption state of method parameters are ignored - both consumed and unconsumed arguments are 
+accepted. This may be refined in future versions if there is a use case.
 
 **Parameter Tracking Examples:**
 

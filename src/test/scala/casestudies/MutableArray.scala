@@ -1,6 +1,6 @@
 package test
 
-import linearfn.{ops, consumed, unconsumed}
+import linearfn.{ops, consumed, unconsumed, repeatable}
 import munit.FunSuite
 import linearfn.RestrictedSelectable.LinearFn
 
@@ -8,10 +8,12 @@ import scala.reflect.ClassTag
 
 @ops
 final case class MArray[A: ClassTag](private val buf: Array[A]):
+  @repeatable
   def write(i: Int, a: A): MArray[A] =
     buf(i) = a; this
 
   /** Returns (arrayAgain, value). Value is unrestricted (plain A). */
+  @repeatable
   def read(i: Int): (MArray[A], A) =
     (this, buf(i))
 
