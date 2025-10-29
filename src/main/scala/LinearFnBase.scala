@@ -5,10 +5,32 @@ import scala.annotation.implicitNotFound
 
 /**
  * Abstract base for all LinearFn implementations.
- * Contains all the common match types and apply logic.
- * Subclasses only need to provide:
- * - Restricted trait implementation
- * - LinearRef case class implementation
+ *
+ * This class implements the core logic for enforcing linearity constraints:
+ *
+ * 1. VERTICAL LINEARITY (Consumption Tracking):
+ *    - Tracks the lifecycle of a single value through a CHAIN of method calls
+ *    - C = EmptyTuple: unconsumed (operations available)
+ *    - C = Tuple1[true]: consumed (only special operations allowed)
+ *    - Modes:
+ *      * Affine (apply/applyMulti): allows unconsumed values (C can be any length > 0)
+ *      * Linear (applyConsumed/applyConsumedMulti): requires consumed values (C must be length 1)
+ *      * Relevant (not implemented here): requires consumed values at least once (C can be of any length > 1)
+ *
+ * 2. HORIZONTAL LINEARITY (Cross-argument Dependency Tracking - D Parameter):
+ *    - Tracks how multiple arguments are distributed across return values
+ *    - D contains indices of input arguments this value depends on (e.g., (0, 1))
+ *    - Constraint: FOR-ALL-RELEVANT + FOR-EACH-AFFINE:
+ *      * For-all-relevant: Each argument must appear ≥1 times across all returns (ExpectedResult <:< ActualResult)
+ *      * For-each-affine: Each argument can appear ≤1 time per return (InverseMapDeps checks for duplicates)
+ *
+ * The combination enables:
+ * - (a, b) → (a, b) ✓ (each used once)
+ * - (a, b) → (a, b, a) ✓ (a used in multiple returns, but ≤1 per return)
+ * - (a, b) → (a+b, x) ✓ (both used in first return)
+ * - (a, b) → (a, a) ✗ (b unused - violates for-all-relevant)
+ * - (a, b) → (a+a, b) ✗ (a used twice in first return - violates for-each-affine)
+ *
  */
 // Base trait that all Restricted implementations must extend
 // This allows runtime type checking in the abstract base class
@@ -41,10 +63,20 @@ abstract class LinearFnBase:
       case (a, d, c) => (Vector[a], d, c)
 
   // Common match types
+  // ============================================================================
+  // HORIZONTAL LINEARITY: Dependency Tracking (D Parameter)
+  // ============================================================================
+
+  // Convert argument tuple to LinearRefs with single-element dependency tuples
+  // Each argument gets a unique index: arg0 → (0), arg1 → (1), etc.
   type ToLinearRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
     case (elem, index) => Restricted[elem, Tuple1[index], EmptyTuple]
   ]
 
+  // FOR-EACH-AFFINE CONSTRAINT: Check that each return value is affine
+  // Maps each return to a Boolean indicating if it has duplicate dependencies
+  // If any return has duplicates (true), compilation fails
+  // Example: (a, a) has duplicates → false; (a, b) has no duplicates → true
   type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
     case EmptyTuple => EmptyTuple
     case h *: t => LiftInnerType[h] match
@@ -76,6 +108,11 @@ abstract class LinearFnBase:
     case Option[inner] => ExtractDependencies[inner]
     case Vector[inner] => ExtractDependencies[inner]
 
+  // FOR-ALL-RELEVANT CONSTRAINT: Check that all arguments are used somewhere
+  // ExpectedResult: Union of all argument indices {0, 1, 2, ...}
+  // ActualResult: Union of all dependencies actually used across all returns
+  // Constraint: ExpectedResult <:< ActualResult ensures every arg appears at least once
+  // Example: args=(a,b), returns=(a,a) → ActualResult={0}, ExpectedResult={0,1} → FAIL (b unused)
   type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
   type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
 
@@ -121,7 +158,14 @@ abstract class LinearFnBase:
       case EmptyTuple => EmptyTuple
       case h *: tail => executeNested(h) *: tupleExecute(tail)
 
-  // Helper to check that all consumption state tuples have length 0 or 1
+  // ============================================================================
+  // VERTICAL LINEARITY: Consumption Tracking (C Parameter)
+  // ============================================================================
+
+  // AFFINE CONSTRAINT: Check that all consumption states are valid (length 0 or 1)
+  // Used by apply/applyMulti - allows unconsumed values
+  // C = EmptyTuple (length 0): unconsumed
+  // C = Tuple1[true] (length 1): consumed
   type AllConsumedStatesAtMostOne[CT <: Tuple] <: Boolean = CT match
     case EmptyTuple => true
     case h *: t => Tuple.Size[h] match
@@ -129,15 +173,29 @@ abstract class LinearFnBase:
       case 1 => AllConsumedStatesAtMostOne[t]
       case _ => false
 
-  // Helper to check that all consumption state tuples have exactly length 1
+  // LINEAR CONSTRAINT: Check that all consumption states are consumed (length 1)
+  // Used by applyConsumed/applyConsumedMulti - requires all values consumed
+  // Only C = Tuple1[true] (length 1) is allowed
   type AllConsumedStatesExactlyOne[CT <: Tuple] <: Boolean = CT match
     case EmptyTuple => true
     case h *: t => Tuple.Size[h] match
       case 1 => AllConsumedStatesExactlyOne[t]
       case _ => false
 
-  // Common LinearFn.apply implementation
+  // ============================================================================
+  // LinearFn Methods: Combining Vertical and Horizontal Constraints
+  // ============================================================================
   object LinearFn:
+    /**
+     * apply - Standard linear function with equal argument and return counts.
+     *
+     * VERTICAL (Consumption): AFFINE - allows unconsumed values (AllConsumedStatesAtMostOne)
+     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE
+     *   - ev2 (InverseMapDeps): Each argument ≤1 per return (for-each-affine)
+     *   - ev4 (ExpectedResult <:< ActualResult): Each argument ≥1 across all returns (for-all-relevant)
+     *
+     * Constraint: n arguments → n returns (Tuple.Size[AT] =:= Tuple.Size[RT])
+     */
     def apply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
     (fns: ToLinearRef[AT] => RQT)
@@ -158,7 +216,14 @@ abstract class LinearFnBase:
 
     /**
      * applyConsumed - variant of apply that requires all return values to be consumed.
-     * Use this when you want to ensure that all results have been consumed exactly once.
+     *
+     * VERTICAL (Consumption): LINEAR - requires consumed values (AllConsumedStatesExactlyOne)
+     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as apply)
+     *
+     * Constraint: n arguments → n returns (Tuple.Size[AT] =:= Tuple.Size[RT])
+     *
+     * Use this when you want to ensure that all results have been consumed exactly once
+     * (e.g., files must be closed, transactions must be committed).
      */
     def applyConsumed[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
@@ -179,9 +244,16 @@ abstract class LinearFnBase:
 
     /**
      * applyMulti - allows arbitrary number of return values (not constrained to match argument count).
-     * Maintains linearity constraints:
-     * - All arguments must appear at least once across all return values
-     * - No argument can appear more than once in any single return value
+     *
+     * VERTICAL (Consumption): AFFINE - allows unconsumed values (AllConsumedStatesAtMostOne)
+     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as apply)
+     *
+     * NO constraint on return count: n arguments → any number of returns
+     *
+     * Enables flexible patterns:
+     * - (a, b) → (a, b, a) ✓ (3 returns from 2 args)
+     * - (a, b, c) → (a) ✗ (b, c unused - violates for-all-relevant)
+     * - (a, b) → (a+a, b) ✗ (a used twice in first return - violates for-each-affine)
      */
     def applyMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)
@@ -201,7 +273,13 @@ abstract class LinearFnBase:
 
     /**
      * applyConsumedMulti - variant of applyMulti that requires all return values to be consumed.
-     * Allows arbitrary number of return values while ensuring all are consumed exactly once.
+     *
+     * VERTICAL (Consumption): LINEAR - requires consumed values (AllConsumedStatesExactlyOne)
+     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as applyMulti)
+     *
+     * NO constraint on return count: n arguments → any number of returns
+     *
+     * Use this when you want flexible return counts but need to ensure all results are consumed.
      */
     def applyConsumedMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
     (args: AT)

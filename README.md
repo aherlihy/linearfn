@@ -13,13 +13,155 @@ This library enforces two complementary forms of linearity:
     useful for resource management (file handles must be closed exactly once, transactions must be committed or rolled 
     back exactly once, etc.).
 
-2. **Multi-argument, multi-return-value linear functions**: For functions with _n_ arguments and _n_ return values, 
-    each argument flows linearly through the function to the return values. 
-    Specifically, each argument appears **at most once per return value** (affine property) and **at least once across 
+2. **Multi-argument, multi-return-value linear functions**: For functions with _n_ arguments and _n_ return values,
+    each argument flows linearly through the function to the return values.
+    Specifically, each argument appears **at most once per return value** (affine property) and **at least once across
     all return values** (relevance property).
-    This definition of linearity is concerned with dependency relations across linear types and is useful for tracking 
-    linear recursion patterns, e.g., mutually recursive relations between linear types that must still maintain a 
+    This definition of linearity is concerned with dependency relations across linear types and is useful for tracking
+    linear recursion patterns, e.g., mutually recursive relations between linear types that must still maintain a
     linear relation.
+
+### Two Dimensional Linearity
+
+These two forms of linearity are **orthogonal** and **complementary**, tracking different aspects of resource usage:
+
+**Vertical Linearity (Consumption State - C Parameter)**
+- Tracks the lifecycle of a **single value** through a **chain of method calls**
+- Implemented via the `C <: Tuple` parameter on `Restricted[A, D, C]`
+- `C = EmptyTuple`: unconsumed (operations still available)
+- `C = Tuple1[true]`: consumed (only special operations allowed)
+- Example flow: `file.write("data").write("more").close()` — each step changes the consumption state
+- **Use case**: Resource management — ensuring files are closed, transactions are committed, handles are finalized
+
+**Horizontal Linearity (Dependency Tracking - D Parameter)**
+- Tracks how **multiple arguments** are **distributed across return values** in a function
+- Implemented via the `D <: Tuple` parameter on `Restricted[A, D, C]`
+- `D` contains indices of input arguments this value depends on (e.g., `(0, 1)` means depends on args 0 and 1)
+- **Affine per-return**: Each argument appears at most once in any single return value
+- **Relevant overall**: Each argument must appear at least once across all return values
+- Example: `LinearFn.apply((a, b, c))(refs => (refs._1, refs._2.combine(refs._3)))` — args distributed across 2 returns
+- **Use case**: Linear recursion patterns — mutual recursion where each recursive call must maintain linear structure
+
+**How They Compose:**
+```scala
+// Vertical: tracking consumption through method chain
+val file: Restricted[FileHandle, (0), EmptyTuple]        // Unconsumed
+val written: Restricted[FileHandle, (0), EmptyTuple]     // Still unconsumed (@repeatable)
+val result: Restricted[String, (0), Tuple1[true]]        // Consumed by close()
+
+// Horizontal: tracking argument distribution across returns
+val arg0: Restricted[Person, (0), EmptyTuple]            // Depends on input 0
+val arg1: Restricted[Person, (1), EmptyTuple]            // Depends on input 1
+val combined: Restricted[Person, (0, 1), EmptyTuple]     // Depends on both inputs
+
+// Both together: file operations across multiple arguments
+LinearFn.apply((file1, file2))(refs =>
+  val w1 = refs._1.write("data")           // D=(0), C=EmptyTuple
+  val w2 = refs._2.write("other")          // D=(1), C=EmptyTuple
+  val r1 = w1.close()                      // D=(0), C=Tuple1[true]
+  val r2 = w2.close()                      // D=(1), C=Tuple1[true]
+  (r1, r2)                                 // Two consumed results
+)
+```
+
+### Relationship to Substructural Type Systems
+
+This library implements a **dual approach** to linearity that maps to well-studied concepts in substructural type theory:
+
+**Substructural Type Systems** restrict the structural rules of logic (weakening, contraction, exchange):
+- **Linear types**: Use exactly once (no weakening, no contraction)
+- **Affine types**: Use at most once (weakening allowed, no contraction)
+- **Relevant types**: Use at least once (contraction allowed, no weakening)
+
+**Our Implementation:**
+
+1. **C Parameter (Vertical) = Traditional Linear Types**
+   - Models resource lifecycle with two states: unconsumed and consumed
+   - Default methods consume the receiver (use exactly once)
+   - `@repeatable` methods allow multiple uses (affine behavior)
+   - `@unconsumed` methods preserve state (no consumption)
+   - Similar to: **Linear Haskell** (`%1->`), **Clean uniqueness types**, **Rust ownership**
+
+2. **D Parameter (Horizontal) = Hybrid Affine + Relevant Constraint**
+   - **Affine per-return**: Each argument used at most once in any single return value (via `InverseMapDeps`)
+   - **Relevant overall**: Each argument used at least once across all returns (via `ExpectedResult <:< ActualResult`)
+   - This hybrid constraint ensures linear recursion without full linear typing complexity
+   - Unique to this library's approach — not directly found in other systems
+
+**Comparison to Related Systems:**
+
+| System | Consumption (Vertical) | Distribution (Horizontal) |
+|--------|----------------------|---------------------------|
+| **Linear Haskell** | Linear functions (`%1->`) consume arguments | Not tracked at type level |
+| **Rust** | Move semantics + borrow checker | Not tracked at type level |
+| **Clean** | Uniqueness types for resources | Not tracked at type level |
+| **ATS** | Linear types with proofs | Limited support via dependent types |
+| **This Library** | `C` parameter (consumed/unconsumed) | `D` parameter (affine + relevant) |
+
+**Recent Related Work:**
+- **Marshall & Orchard (2024)**: "Linearly Qualified Types" — graded linear types in Haskell
+- **van Rooij & Krebbers (2025)**: "Linearity and Uniqueness: An Entente Cordiale" — unifying linear and uniqueness typing
+- **Bernardy et al. (2018)**: "Linear Haskell: Practical Linearity in a Higher-Order Polymorphic Language"
+- **Walker (2004)**: "Substructural type systems" — foundational survey
+
+**Why This Dual Approach?**
+
+Vertical linearity alone (like Rust/Haskell) handles resource management but doesn't track how arguments flow through recursive functions. Horizontal linearity alone would track dependencies but not lifecycle. Together:
+- Vertical ensures proper resource cleanup (files closed, transactions committed)
+- Horizontal ensures structural linearity in recursion (mutual recursion maintains linear structure)
+- Both compose cleanly via independent type parameters
+
+### Design Space: Horizontal Linearity Constraint Combinations
+
+Horizontal linearity can be decomposed into two orthogonal constraints:
+
+**Scope of Constraint:**
+- **For-all**: Constraint applies across all return values combined
+- **For-each**: Constraint applies to each individual return value
+
+**Type of Constraint:**
+- **Affine**: Each argument used **at most once** (no contraction)
+- **Relevant**: Each argument used **at least once** (no weakening)
+
+This library uses **for-all-relevant + for-each-affine**, but other combinations are possible:
+
+| Combination | What It Allows | Example Valid | Example Invalid | Use Case |
+|-------------|---------------|---------------|-----------------|----------|
+| **For-all-relevant +<br>For-each-affine**<br>*(This library)* | Each arg appears ≥1 times across all returns,<br>≤1 time per return | `(a, b) → (a, b)`<br>`(a, b) → (a, b, a)`<br>`(a, b) → (a+b, x)` | `(a, b) → (a, a)` (b unused)<br>`(a, b) → (a+a, b)` (a twice in return 1) | Structural recursion with flexible return count.<br>Ensures all args used somewhere. |
+| **For-all-relevant +<br>For-all-affine** | Each arg appears ≥1 times across all returns,<br>≤1 time total | `(a, b) → (a, b)`<br>`(a, b) → (b, a)`<br>`(a, b) → (a+b, x)` | `(a, b) → (a, b, a)` (a used twice)<br>`(a, b) → (a, a)` (a used twice) | Traditional linear types.<br>Similar to Linear Haskell for multiple returns. |
+| **For-each-relevant +<br>For-each-affine** | Each arg appears ≥1 times in every return,<br>≤1 time per return | `(a, b) → (a+b, a+b)`<br>`(a, b) → (a+b, a+b, a+b)` | `(a, b) → (a, b)` (first return missing b)<br>`(a, b) → (a+a, b+b)` (duplicates) | Uniform recursion.<br>Every branch needs all inputs. |
+| **For-each-relevant +<br>For-all-affine** | Each arg appears ≥1 times in every return,<br>≤1 time total | `(a) → (a)`<br>`(a, b) → (a+b)` | `(a, b) → (a, b)` (a in 1st and 2nd)<br>`(a, b) → (a+b, a+b)` (a,b in 1st and 2nd) | Limited utility.<br>Only works with 1 return value. |
+
+**Key Insights:**
+
+1. **For-all-relevant + For-each-affine** (current) is the most flexible:
+   - Allows multiple return values of varying structure
+   - Each argument must be used somewhere (ensures linearity)
+   - No duplicate use within a single return (prevents aliasing)
+   - Enables patterns like `(a, b, c) → (a, b, a, c)` for complex recursion
+
+2. **For-all-relevant + For-all-affine** is traditional linear types:
+   - Each argument used exactly once across all returns
+   - More restrictive but simpler to reason about
+   - Closer to Linear Haskell's model
+
+3. **For-each-relevant + For-each-affine** is very restrictive:
+   - All returns must have the same dependency structure
+   - Only useful for uniform recursive patterns
+   - Example: fixed-point where all branches need all inputs
+
+4. **For-each-relevant + For-all-affine** is impractical:
+   - Can't have multiple returns (would violate for-all-affine)
+   - Only works for single return value
+   - Not useful for recursive patterns
+
+**Why For-all-relevant + For-each-affine?**
+
+This combination was chosen because:
+- **Enables flexible recursion**: Multiple recursive calls with different structures
+- **Prevents local aliasing**: No duplicates within a single return (maintains affine property where it matters)
+- **Ensures global coverage**: All arguments used somewhere (maintains relevance)
+- **Practical for DSLs**: Query languages, state machines, recursive data structures all benefit from this flexibility
 
 ## Usage
 
