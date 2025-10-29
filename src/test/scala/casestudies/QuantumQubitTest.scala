@@ -1,9 +1,9 @@
 package test.casestudies
 
 import munit.FunSuite
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable}
 import linearfn.RestrictedSelectable.LinearFn
-import test.TestUtils.*
+import test.TestUtils
 
 /**
  * Case Study: Quantum Qubit Operations
@@ -47,7 +47,7 @@ class QuantumQubitTest extends FunSuite:
       }
     """)
     assert(
-      obtained.contains(linearMsg),
+      obtained.contains(TestUtils.horizontalRelevanceFailed),
       s"expected linear (argument-to-return) violation, obtained:\n$obtained"
     )
   }
@@ -67,7 +67,7 @@ class QuantumQubitTest extends FunSuite:
       }
     """)
     assert(
-      obtained.contains(affineMsg),
+      obtained.contains(TestUtils.horizontalAffineFailed),
       s"expected affine (duplicate-use) violation, obtained:\n$obtained"
     )
   }

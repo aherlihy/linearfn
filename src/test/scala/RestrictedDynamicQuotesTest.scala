@@ -1,6 +1,7 @@
 package test
 
-import linearfn.RestrictedDynamicQuotes
+
+import linearfn.{RestrictedDynamicQuotes}
 
 /**
  * Tests for RestrictedDynamicQuotes implementation.
@@ -16,7 +17,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
         (refs._1, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamicQuotes: manual non-linear") {
@@ -29,7 +30,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamicQuotes: manual non-affine") {
@@ -42,7 +43,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
 //  FAILS: Quotes uses Select.unique which doesn't work on overloaded methods
@@ -52,7 +53,7 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
 //       val num = 42
 //       RestrictedDynamicQuotes.LinearFn.apply((str, num))(refs => (refs._2 + refs._2, refs._1))
 //     """)
-//     assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+//     assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
 //   }
 
   // Runtime tests for field and method access
@@ -117,5 +118,5 @@ class RestrictedDynamicQuotesTest extends LinearFnTestSuite(RestrictedDynamicQuo
         (combined, combined)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }

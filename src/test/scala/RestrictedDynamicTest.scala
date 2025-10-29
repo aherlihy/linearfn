@@ -1,6 +1,7 @@
 package test
 
-import linearfn.RestrictedDynamic
+
+import linearfn.{RestrictedDynamic}
 
 /**
  * Tests for RestrictedDynamic implementation.
@@ -16,7 +17,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
         (refs._1, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamic: manual non-linear") {
@@ -29,7 +30,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamic: manual non-affine") {
@@ -42,7 +43,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamic: dependencies are tracked for primitive operator") {
@@ -51,7 +52,7 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
       val num = 42
       RestrictedDynamic.LinearFn.apply((str, num))(refs => (refs._2 + refs._2, refs._1))
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   // Runtime tests for field and method access
@@ -116,5 +117,5 @@ class RestrictedDynamicTest extends LinearFnTestSuite(RestrictedDynamic, "Restri
         (combined, combined)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }

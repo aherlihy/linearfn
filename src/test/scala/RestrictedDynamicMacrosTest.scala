@@ -1,6 +1,7 @@
 package test
 
-import linearfn.RestrictedDynamicMacros
+
+import linearfn.{RestrictedDynamicMacros}
 
 /**
  * Tests for RestrictedDynamicMacros implementation.
@@ -16,7 +17,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         (refs._1, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamicMacros: manual non-linear") {
@@ -29,7 +30,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamicMacros: manual non-affine") {
@@ -42,7 +43,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedDynamicMacros: dependencies are tracked for primitive operator") {
@@ -51,7 +52,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
       val num = 42
       RestrictedDynamicMacros.LinearFn.apply((str, num))(refs => (refs._2 + refs._2, refs._1))
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   // Runtime tests for field and method access
@@ -120,7 +121,7 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         (combined, refs._2)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   test("Wrong # of arguments fails") {
@@ -141,5 +142,5 @@ class RestrictedDynamicMacrosTest extends LinearFnTestSuite(RestrictedDynamicMac
         Tuple1(combined)
       )
     """)
-    assert(obtained.contains(TestUtils.argsMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }

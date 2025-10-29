@@ -33,7 +33,7 @@ case class TestQuery[A](data: List[A]):
 
 @experimental
 class RestrictedAnnotationTest extends FunSuite:
-  import TestUtils.*
+
 
   test("TestQuery.map with @unrestricted - doesn't track function") {
     import TestQueryOps.*
@@ -104,7 +104,7 @@ class RestrictedAnnotationTest extends FunSuite:
        )
      """)
 
-    assert(obtained.contains(affineMsg), s"Expected linearity error but got: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"Expected linearity error but got: $obtained")
   }
 
   test("@restrictedFn runtime correctness - function actually receives unwrapped value") {

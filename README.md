@@ -163,6 +163,52 @@ This combination was chosen because:
 - **Ensures global coverage**: All arguments used somewhere (maintains relevance)
 - **Practical for DSLs**: Query languages, state machines, recursive data structures all benefit from this flexibility
 
+### Using customApply for Different Constraint Combinations
+
+While the library defaults to **for-all-relevant + for-each-affine**, you can use `customApply` to select different constraint combinations:
+
+```scala
+import linearfn.{VerticalConstraint, HorizontalConstraint}
+
+// Traditional linear types (each arg used exactly once total)
+LinearFn.customApply(
+  (vertical = VerticalConstraint.Affine,
+   horizontal = HorizontalConstraint.ForAllRelevantForAllAffine)
+)((a, b))(refs =>
+  (refs._1, refs._2)  // OK: each used once
+  // (refs._1, refs._2, refs._1) // Error: refs._1 used twice
+)
+
+// Uniform recursion (all returns must use all args)
+LinearFn.customApply(
+  (vertical = VerticalConstraint.Affine,
+   horizontal = HorizontalConstraint.ForEachRelevantForEachAffine)
+)((a, b))(refs =>
+  // Both returns must contain both a and b
+  (a.combine(b), a.combine(b))
+)
+
+// Vertical constraints control consumption
+LinearFn.customApply(
+  (vertical = VerticalConstraint.Linear,  // Must consume exactly once
+   horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+)((file1, file2))(refs =>
+  (refs._1.close(), refs._2.close())  // OK: consumed via close()
+  // (refs._1, refs._2) // Error: not consumed
+)
+```
+
+**Vertical Constraints** (consumption tracking via `C` parameter):
+- `VerticalConstraint.Affine`: Consumed at most once (default)
+- `VerticalConstraint.Linear`: Consumed exactly once
+- `VerticalConstraint.Relevant`: Consumed at least once
+
+**Horizontal Constraints** (dependency tracking via `D` parameter):
+- `HorizontalConstraint.ForAllRelevantForEachAffine`: Current default (flexible recursion)
+- `HorizontalConstraint.ForAllRelevantForAllAffine`: Traditional linear types
+- `HorizontalConstraint.ForEachRelevantForEachAffine`: Uniform recursion
+- `HorizontalConstraint.ForEachRelevantForAllAffine`: Single return only (impractical)
+
 ## Usage
 
 ```scala

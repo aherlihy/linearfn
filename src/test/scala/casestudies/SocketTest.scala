@@ -1,7 +1,7 @@
 package test.casestudies
 
 import munit.FunSuite
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
 import scala.annotation.experimental
 import test.TestUtils
 
@@ -13,15 +13,17 @@ import test.TestUtils
  */
 @experimental
 class SocketTest extends FunSuite:
-  import TestUtils.*
 
-  test("Socket protocol: send → close (applyConsumed ensures close)") {
+
+  test("Socket protocol: send → close (customApply with Linear ensures close)") {
     import SocketOps.*
 
     val socket = Socket.connect("localhost:8080")
 
-    // applyConsumed: ensures close() is called
-    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
+    // customApply with Linear: ensures close() is called
+    val result = RestrictedSelectable.LinearFn.customApply(
+      (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+    )(Tuple1(socket))(refs =>
       val sent = refs._1.send("Hello")
       val status = sent.close()  // @consumed
       Tuple1(status)
@@ -35,7 +37,9 @@ class SocketTest extends FunSuite:
 
     val socket = Socket.connect("localhost:8080")
 
-    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
+    val result = RestrictedSelectable.LinearFn.customApply(
+      (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+    )(Tuple1(socket))(refs =>
       val sent = refs._1.send("Msg1").send("Msg2").send("Msg3")
       val status = sent.close()  // @consumed
       Tuple1(status)
@@ -63,22 +67,24 @@ class SocketTest extends FunSuite:
 //    assertEquals(result._1, "Connection closed")
 //  }
 
-  test("NEGATIVE: socket must be closed when using applyConsumed") {
+  test("NEGATIVE: socket must be closed when using customApply with Linear") {
     import SocketOps.*
 
     val obtained = compileErrors("""
       import SocketOps.*
-      import linearfn.RestrictedSelectable
+      import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
 
       val socket = Socket.connect("localhost:8080")
 
-      RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
+      RestrictedSelectable.LinearFn.customApply(
+        (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+      )(Tuple1(socket))(refs =>
         val sent = refs._1.send("Data")
         Tuple1(sent)  // Error: must consume (call close)
       )
     """)
 
-    assert(obtained.contains(consumptionExactlyOneMsg), s"Expected consumption error but got: $obtained")
+    assert(obtained.contains(TestUtils.verticalConstraintFailed), s"Expected consumption error but got: $obtained")
   }
 
   test("NEGATIVE: cannot use socket after close") {
@@ -96,5 +102,5 @@ class SocketTest extends FunSuite:
       )
     """)
 
-    assert(obtained.contains(argsMsg), s"Expected args error but got: $obtained")
+    assert(obtained.contains(TestUtils.missingField), s"Expected args error but got: $obtained")
   }

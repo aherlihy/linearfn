@@ -21,19 +21,16 @@ object RestrictedSelectable extends LinearFnBase:
     def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2]
 
     def selectDynamic(name: String) = {
-      println(s"field access $name")
       stageField(name)
     }
 
     // TODO: for now unused
     def applyDynamic(method: String)(): Restricted[A, D, C] = {
-      println(s"applying $method with no args")
       stageCall[A, D, C](method, EmptyTuple)
     }
 
     // TODO: for now unused
     def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D], CollateConsumed[T1, C]] = { // TODO:
-      println(s"applying $method with arg: $arg")
       stageCall[A, CollateDeps[T1, D], CollateConsumed[T1, C]](method, Tuple1(arg))
     }
 
@@ -45,7 +42,6 @@ object RestrictedSelectable extends LinearFnBase:
 
       override def stageField(name: String) =
         LinearRef(() =>
-          println(s"inside fn: staged field access $name")
           val obj = fn()
           val field = obj.getClass.getDeclaredField(name)
           field.setAccessible(true)
@@ -53,9 +49,7 @@ object RestrictedSelectable extends LinearFnBase:
         )
 
       override def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2] = {
-        println(s"staging call $name with args: $args")
         LinearRef[R, D2, C2](() =>
-          println(s"inside fn: staged call $name with args: $args")
           val obj = fn()
 
           // Helper to unwrap Restricted values from function return types

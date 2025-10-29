@@ -1,10 +1,9 @@
 package test
 
+
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.RestrictedSelectable
-import linearfn.{ops, repeatable}
-import TestUtils.*
+import linearfn.{ops, repeatable, RestrictedSelectable}
 
 // Simple generic class to test generic type parameter support
 @ops
@@ -130,14 +129,14 @@ class GenericOpsTest extends FunSuite:
       import BoxOps.*
 
       val box = Box[String]("test")
-      RestrictedSelectable.LinearFn.apply(Tuple1(box))(refs =>
+      RestrictedSelectable.LinearFn.strictApply(Tuple1(box))(refs =>
         val v1 = refs._1.get()
-        val v2 = refs._1.get()  // Error: reusing refs._1
+        val v2 = refs._1.get()  // Error: returning 2 values from 1 input with strictApply
         (v1, v2)
       )
     """)
     assert(
-      obtained.contains(argsMsg),
+      obtained.contains(TestUtils.strictFnFailed),
       s"Expected linearity error but got: $obtained"
     )
   }

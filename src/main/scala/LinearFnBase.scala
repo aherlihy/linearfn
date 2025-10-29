@@ -3,6 +3,60 @@ package linearfn
 import Utils.*
 import scala.annotation.implicitNotFound
 
+// ============================================================================
+// Constraint Type Definitions for customApply
+// ============================================================================
+
+/**
+ * Vertical linearity constraints - track consumption state through method chains
+ */
+sealed trait VerticalConstraint
+object VerticalConstraint:
+  /** C must have length = 1 (consumed exactly once) */
+  case object Linear extends VerticalConstraint
+  /** C must have length ≤ 1 (consumed at most once) */
+  case object Affine extends VerticalConstraint
+  /** C must have length ≥ 1 (consumed at least once) */
+  case object Relevant extends VerticalConstraint
+
+/**
+ * Horizontal linearity constraints - track argument distribution across returns
+ * Each combines two orthogonal checks (ForAll/ForEach + Affine/Relevant)
+ */
+sealed trait HorizontalConstraint
+object HorizontalConstraint:
+  /**
+   * For-all-relevant + For-each-affine (current default)
+   * - Each arg appears ≥1 times across all returns
+   * - Each arg appears ≤1 time per return
+   * Example: (a, b) → (a, b, a) ✓
+   */
+  case object ForAllRelevantForEachAffine extends HorizontalConstraint
+
+  /**
+   * For-all-relevant + For-all-affine (traditional linear types)
+   * - Each arg appears ≥1 times across all returns
+   * - Each arg appears ≤1 time total
+   * Example: (a, b) → (a, b) ✓, (a, b) → (a, b, a) ✗
+   */
+  case object ForAllRelevantForAllAffine extends HorizontalConstraint
+
+  /**
+   * For-each-relevant + For-each-affine (uniform recursion)
+   * - Each arg appears ≥1 times in every return
+   * - Each arg appears ≤1 time per return
+   * Example: (a, b) → (a+b, a+b) ✓, (a, b) → (a, b) ✗
+   */
+  case object ForEachRelevantForEachAffine extends HorizontalConstraint
+
+  /**
+   * For-each-relevant + For-all-affine (impractical - only 1 return)
+   * - Each arg appears ≥1 times in every return
+   * - Each arg appears ≤1 time total
+   * Example: Only works with single return value
+   */
+  case object ForEachRelevantForAllAffine extends HorizontalConstraint
+
 /**
  * Abstract base for all LinearFn implementations.
  *
@@ -182,117 +236,268 @@ abstract class LinearFnBase:
       case 1 => AllConsumedStatesExactlyOne[t]
       case _ => false
 
+  // RELEVANT CONSTRAINT: Check that all consumption states are consumed at least once (length ≥ 1)
+  // Used by customApply with VerticalConstraint.Relevant
+  // C must have length ≥ 1
+  type AllConsumedStatesAtLeastOne[CT <: Tuple] <: Boolean = CT match
+    case EmptyTuple => true
+    case h *: t => Tuple.Size[h] match
+      case 0 => false
+      case _ => AllConsumedStatesAtLeastOne[t]
+
+  // ============================================================================
+  // Constraint Checking for customApply
+  // ============================================================================
+
+  // Check vertical constraint satisfaction based on VerticalConstraint type
+  type CheckVerticalConstraint[VC <: VerticalConstraint, CT <: Tuple] <: Boolean = VC match
+    case VerticalConstraint.Linear.type => AllConsumedStatesExactlyOne[CT]
+    case VerticalConstraint.Affine.type => AllConsumedStatesAtMostOne[CT]
+    case VerticalConstraint.Relevant.type => AllConsumedStatesAtLeastOne[CT]
+
+  // Check strict constraint (n args → n returns with same types)
+  type CheckStrictConstraint[Strict <: Boolean, AT <: Tuple, RT <: Tuple] = Strict match
+    case true => Tuple.Size[AT] =:= Tuple.Size[RT]
+    case false => true =:= true  // Always satisfied when strict=false
+
+  // Helper: Check for-all-relevant (all args used at least once across all returns)
+  // Returns true if constraint is satisfied (all args used)
+  type CheckForAllRelevant[AT <: Tuple, RQT <: Tuple] =
+    ExpectedResult[AT] <:< ActualResult[RQT]
+
+  // Helper: Check for-all-affine (no arg used more than once total)
+  // Count total uses of each argument across all returns
+  type CheckForAllAffine[AT <: Tuple, RQT <: Tuple] =
+    AllArgsUsedAtMostOnceTotal[GenerateIndices[0, Tuple.Size[AT]], RQT]
+
+  type AllArgsUsedAtMostOnceTotal[Indices <: Tuple, RQT <: Tuple] <: Boolean = Indices match
+    case EmptyTuple => true
+    case idx *: rest =>
+      CountArgUsesInAllReturns[idx, RQT] match
+        case 0 => AllArgsUsedAtMostOnceTotal[rest, RQT]
+        case 1 => AllArgsUsedAtMostOnceTotal[rest, RQT]
+        case _ => false
+
+  // Collect all occurrences of Idx across all returns as a tuple, then count with Tuple.Size
+  type CountArgUsesInAllReturns[Idx, RQT <: Tuple] =
+    Tuple.Size[CollectArgUsesInAllReturns[Idx, RQT]]
+
+  type CollectArgUsesInAllReturns[Idx, RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case h *: t =>
+      Tuple.Concat[
+        CollectArgUsesInReturn[Idx, h],
+        CollectArgUsesInAllReturns[Idx, t]
+      ]
+
+  type CollectArgUsesInReturn[Idx, R] <: Tuple = LiftInnerType[R] match
+    case (_, d, _) => CollectOccurrences[Idx, d]
+
+  // Collect all occurrences of Elem in tuple T as a tuple of Units
+  type CollectOccurrences[Elem, T <: Tuple] <: Tuple = T match
+    case EmptyTuple => EmptyTuple
+    case Elem *: tail => Unit *: CollectOccurrences[Elem, tail]
+    case _ *: tail => CollectOccurrences[Elem, tail]
+
+  // Count occurrences by collecting them as a tuple, then taking size
+  type CountOccurrences[Elem, T <: Tuple] =
+    Tuple.Size[CollectOccurrences[Elem, T]]
+
+  // Helper: Check for-each-affine (no duplicates in any single return)
+  type CheckForEachAffine[DT <: Tuple, RQT <: Tuple] =
+    InverseMapDeps[RQT] =:= DT  // This already checks for duplicates
+
+  // Helper: Check for-each-relevant (all args in every return)
+  type CheckForEachRelevant[AT <: Tuple, RT <: Tuple] =
+    AllReturnsContainAllArgs[GenerateIndices[0, Tuple.Size[AT]], RT]
+
+  type AllReturnsContainAllArgs[Indices <: Tuple, RT <: Tuple] <: Boolean = RT match
+    case EmptyTuple => true
+    case h *: t =>
+      ReturnContainsAllIndices[Indices, h] match
+        case true => AllReturnsContainAllArgs[Indices, t]
+        case false => false
+
+  type ReturnContainsAllIndices[Indices <: Tuple, R] <: Boolean = LiftInnerType[R] match
+    case (_, d, _) => AllIndicesInDeps[Indices, d]
+
+  type AllIndicesInDeps[Indices <: Tuple, D <: Tuple] <: Boolean = Indices match
+    case EmptyTuple => true
+    case idx *: rest =>
+      Contains[idx, D] match
+        case true => AllIndicesInDeps[rest, D]
+        case false => false
+
+  type Contains[Elem, T <: Tuple] <: Boolean = T match
+    case EmptyTuple => false
+    case Elem *: _ => true
+    case _ *: tail => Contains[Elem, tail]
+
+  // Check first component of horizontal constraint (Relevant check)
+  type CheckHorizontalRelevant[
+    HC <: HorizontalConstraint,
+    AT <: Tuple,
+    RT <: Tuple,
+    RQT <: Tuple
+  ] = HC match
+    case HorizontalConstraint.ForAllRelevantForEachAffine.type =>
+      CheckForAllRelevant[AT, RQT]
+    case HorizontalConstraint.ForAllRelevantForAllAffine.type =>
+      CheckForAllRelevant[AT, RQT]
+    case HorizontalConstraint.ForEachRelevantForEachAffine.type =>
+      CheckForEachRelevant[AT, RT]
+    case HorizontalConstraint.ForEachRelevantForAllAffine.type =>
+      CheckForEachRelevant[AT, RT]
+
+  // Check second component of horizontal constraint (Affine check)
+  type CheckHorizontalAffine[
+    HC <: HorizontalConstraint,
+    AT <: Tuple,
+    DT <: Tuple,
+    RQT <: Tuple
+  ] = HC match
+    case HorizontalConstraint.ForAllRelevantForEachAffine.type =>
+      CheckForEachAffine[DT, RQT]
+    case HorizontalConstraint.ForAllRelevantForAllAffine.type =>
+      CheckForAllAffine[AT, RQT]
+    case HorizontalConstraint.ForEachRelevantForEachAffine.type =>
+      CheckForEachAffine[DT, RQT]
+    case HorizontalConstraint.ForEachRelevantForAllAffine.type =>
+      CheckForAllAffine[AT, RQT]
+
   // ============================================================================
   // LinearFn Methods: Combining Vertical and Horizontal Constraints
   // ============================================================================
+
   object LinearFn:
     /**
-     * apply - Standard linear function with equal argument and return counts.
+     * applyImpl - Core implementation without constraints.
+     * Private method used by all public apply variants.
+     */
+    private def applyImpl[AT <: Tuple, RT <: Tuple, RQT <: Tuple](
+      args: AT
+    )(fns: ToLinearRef[AT] => RQT): RT =
+      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
+      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
+      val exec = fns(refsTuple)
+      tupleExecute(exec).asInstanceOf[RT]
+
+    /**
+     * customApply - Fully customizable linear function with user-specified constraints.
      *
-     * VERTICAL (Consumption): AFFINE - allows unconsumed values (AllConsumedStatesAtMostOne)
+     * Allows users to specify:
+     * - Vertical constraint (Linear/Affine/Relevant)
+     * - Horizontal constraint (one of 4 pre-defined combinations)
+     *
+     * This method does NOT enforce strict size checking (n args = n returns).
+     * Use `apply` or `strictApply` if you need size constraints.
+     *
+     * Usage:
+     * {{{
+     * LinearFn.customApply(
+     *   (vertical = VerticalConstraint.Affine,
+     *    horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+     * )((a, b))(refs => (refs._1, refs._2, refs._1))  // 3 returns from 2 args OK
+     * }}}
+     */
+    def customApply[
+      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
+      VC <: VerticalConstraint,
+      HC <: HorizontalConstraint
+    ](
+      options: (vertical: VC, horizontal: HC)
+    )(args: AT)(fns: ToLinearRef[AT] => RQT)(
+      using
+        // Basic type extraction evidences
+        @implicitNotFound(ErrorMsg.invalidResultTypes)
+        ev1: RT =:= ExtractResultTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
+
+        // Vertical constraint evidence
+        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+        evV: CheckVerticalConstraint[VC, CT] =:= true,
+
+        // Horizontal constraint evidences (two separate checks)
+        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
+
+        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
+    ): RT = applyImpl[AT, RT, RQT](args)(fns)
+
+    /**
+     * apply - Convenience method for the default linear function behavior.
+     *
+     * VERTICAL (Consumption): AFFINE - allows unconsumed values (at most once consumed)
      * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE
-     *   - ev2 (InverseMapDeps): Each argument ≤1 per return (for-each-affine)
-     *   - ev4 (ExpectedResult <:< ActualResult): Each argument ≥1 across all returns (for-all-relevant)
+     * STRICT: false - allows any number of return values
      *
-     * Constraint: n arguments → n returns (Tuple.Size[AT] =:= Tuple.Size[RT])
+     * This is the standard apply method. It allows flexible return counts while enforcing
+     * that all arguments are used and each argument appears at most once per return.
+     *
+     * Usage:
+     * {{{
+     * LinearFn.apply((a, b))(refs => (refs._1, refs._2, refs._1))  // 3 returns from 2 args OK
+     * }}}
      */
     def apply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)
-    (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
-//        /* DEBUG */ (using @implicitNotFound("DEBUG: RQT = ${RQT}") debugRQT: RQT =:= Nothing)
-    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
-    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
-    (using @implicitNotFound("Linear functions must have the same number of argument and return types and the return types must be Restricted") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
-    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
-    (using @implicitNotFound("All return values must have consumption state of length 0 or 1") ev5: AllConsumedStatesAtMostOne[CT] =:= true): RT =
-      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
-      val exec = fns(refsTuple)
-      println(exec)
-      tupleExecute(exec).asInstanceOf[RT]
+    (args: AT)(fns: ToLinearRef[AT] => RQT)(
+      using
+        ev1: RT =:= ExtractResultTypes[RQT],
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
+
+        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+        evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
+
+        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+        evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
+
+        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+        evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT]
+    ): RT = applyImpl[AT, RT, RQT](args)(fns)
 
     /**
-     * applyConsumed - variant of apply that requires all return values to be consumed.
+     * strictApply - Convenience method for strict linear functions (n args → n returns).
      *
-     * VERTICAL (Consumption): LINEAR - requires consumed values (AllConsumedStatesExactlyOne)
-     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as apply)
+     * VERTICAL (Consumption): AFFINE - allows unconsumed values (at most once)
+     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE
+     * STRICT: true - requires n arguments → n returns with same number
      *
-     * Constraint: n arguments → n returns (Tuple.Size[AT] =:= Tuple.Size[RT])
+     * This matches the original `apply` behavior and is useful when you want to enforce
+     * that the number of returns matches the number of arguments.
      *
-     * Use this when you want to ensure that all results have been consumed exactly once
-     * (e.g., files must be closed, transactions must be committed).
+     * Usage:
+     * {{{
+     * LinearFn.strictApply((a, b))(refs => (refs._1, refs._2))  // Must be 2 args → 2 returns
+     * }}}
      */
-    def applyConsumed[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)
-    (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
-    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
-    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
-    (using @implicitNotFound("Linear functions must have the same number of argument and return types and the return types must be Restricted") ev0: Tuple.Size[AT] =:= Tuple.Size[RT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
-    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
-    (using @implicitNotFound("All return values must be consumed (consumption state length must be exactly 1)") ev5: AllConsumedStatesExactlyOne[CT] =:= true): RT =
-      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
-      val exec = fns(refsTuple)
-      println(exec)
-      tupleExecute(exec).asInstanceOf[RT]
+    def strictApply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
+    (args: AT)(fns: ToLinearRef[AT] => RQT)(
+      using
+        ev1: RT =:= ExtractResultTypes[RQT],
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
 
-    /**
-     * applyMulti - allows arbitrary number of return values (not constrained to match argument count).
-     *
-     * VERTICAL (Consumption): AFFINE - allows unconsumed values (AllConsumedStatesAtMostOne)
-     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as apply)
-     *
-     * NO constraint on return count: n arguments → any number of returns
-     *
-     * Enables flexible patterns:
-     * - (a, b) → (a, b, a) ✓ (3 returns from 2 args)
-     * - (a, b, c) → (a) ✗ (b, c unused - violates for-all-relevant)
-     * - (a, b) → (a+a, b) ✗ (a used twice in first return - violates for-each-affine)
-     */
-    def applyMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)
-    (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
-    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
-    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
-    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
-    (using @implicitNotFound("All return values must have consumption state of length 0 or 1") ev5: AllConsumedStatesAtMostOne[CT] =:= true): RT =
-      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
-      val exec = fns(refsTuple)
-      println(exec)
-      tupleExecute(exec).asInstanceOf[RT]
+        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+        evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
 
-    /**
-     * applyConsumedMulti - variant of applyMulti that requires all return values to be consumed.
-     *
-     * VERTICAL (Consumption): LINEAR - requires consumed values (AllConsumedStatesExactlyOne)
-     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE (same as applyMulti)
-     *
-     * NO constraint on return count: n arguments → any number of returns
-     *
-     * Use this when you want flexible return counts but need to ensure all results are consumed.
-     */
-    def applyConsumedMulti[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)
-    (fns: ToLinearRef[AT] => RQT)
-    (using @implicitNotFound("Cannot extract result types from RQT") ev1: RT =:= ExtractResultTypes[RQT])
-    (using @implicitNotFound("Cannot extract dependencies from RQT") ev1b: DT =:= ExtractDependencyTypes[RQT])
-    (using @implicitNotFound("Cannot extract consumption states from RQT") ev1c: CT =:= ExtractConsumedTypes[RQT])
-    (using @implicitNotFound("Cannot extract dependencies, is the query affine?") ev2: InverseMapDeps[RQT] =:= DT)
-    (using @implicitNotFound("Failed to match restricted types: ${RQT}") ev3: RQT =:= ToRestricted[RT, DT, CT])
-    (using @implicitNotFound("Recursive definitions must be linear: ${RT}") ev4: ExpectedResult[AT] <:< ActualResult[RQT])
-    (using @implicitNotFound("All return values must be consumed (consumption state length must be exactly 1)") ev5: AllConsumedStatesExactlyOne[CT] =:= true): RT =
-      val argsRefs = args.toArray.map(a => makeLinearRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToLinearRef[AT]]
-      val exec = fns(refsTuple)
-      println(exec)
-      tupleExecute(exec).asInstanceOf[RT]
+        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+        evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
+
+        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+        evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT],
+
+        @implicitNotFound(ErrorMsg.strictFnFailed)
+        evStrict: CheckStrictConstraint[true, AT, RT]
+    ): RT = applyImpl[AT, RT, RQT](args)(fns)

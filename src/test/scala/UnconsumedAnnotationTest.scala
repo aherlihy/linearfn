@@ -6,7 +6,7 @@ import scala.annotation.experimental
 
 @experimental
 class UnconsumedAnnotationTest extends FunSuite:
-  import TestUtils.*
+
 
   test("@unconsumed size() can be called on unconsumed value") {
     import MArrayOps.*
@@ -82,7 +82,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains("Found:    "),
+      obtained.contains(TestUtils.missingField),
       s"Expected type error but got: $obtained"
     )
   }
@@ -103,7 +103,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains("Found:    "),
+      obtained.contains(TestUtils.missingField),
       s"Expected type error but got: $obtained"
     )
   }
@@ -219,7 +219,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains(affineMsg),
+      obtained.contains(TestUtils.horizontalAffineFailed),
       s"Expected linearity error but got: $obtained"
     )
   }

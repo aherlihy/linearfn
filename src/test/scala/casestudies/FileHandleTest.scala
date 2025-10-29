@@ -1,7 +1,7 @@
 package test.casestudies
 
 import munit.FunSuite
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
 import scala.annotation.experimental
 import test.TestUtils
 
@@ -12,15 +12,17 @@ import test.TestUtils
  */
 @experimental
 class FileHandleTest extends FunSuite:
-  import TestUtils.*
+
 
   test("File protocol: write → close (applyConsumed ensures close)") {
     import FileHandleOps.*
 
     val file = FileHandle.open("test.txt")
 
-    // applyConsumed: ensures all arguments are consumed (close is called)
-    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
+    // customApply with Linear: ensures all arguments are consumed (close is called)
+    val result = RestrictedSelectable.LinearFn.customApply(
+      (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+    )(Tuple1(file))(refs =>
       val written = refs._1.write("Hello World")
       val status = written.close()  // @consumed
       Tuple1(status)
@@ -34,7 +36,9 @@ class FileHandleTest extends FunSuite:
 
     val file = FileHandle.open("test.txt")
 
-    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
+    val result = RestrictedSelectable.LinearFn.customApply(
+      (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+    )(Tuple1(file))(refs =>
       val file2 = refs._1.write("Line 1\n").write("Line 2\n").write("Line 3\n")
       val status = file2.close()  // @consumed
       Tuple1(status)
@@ -64,22 +68,24 @@ class FileHandleTest extends FunSuite:
 //    assertEquals(result._1, "File closed")
 //  }
 
-  test("NEGATIVE: file must be closed when using applyConsumed") {
+  test("NEGATIVE: file must be closed when using customApply with Linear") {
     import FileHandleOps.*
 
     val obtained = compileErrors("""
       import FileHandleOps.*
-      import linearfn.RestrictedSelectable
+      import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
 
       val file = FileHandle.open("test.txt")
 
-      RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
+      RestrictedSelectable.LinearFn.customApply(
+        (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+      )(Tuple1(file))(refs =>
         val written = refs._1.write("Data")
         Tuple1(written)  // Error: must consume (call close)
       )
     """)
 
-    assert(obtained.contains(consumptionExactlyOneMsg), s"Expected consumption error but got: $obtained")
+    assert(obtained.contains(TestUtils.verticalConstraintFailed), s"Expected consumption error but got: $obtained")
   }
 
   test("NEGATIVE: cannot use file after close") {
@@ -97,5 +103,5 @@ class FileHandleTest extends FunSuite:
       )
     """)
 
-    assert(obtained.contains(argsMsg), s"Expected args error but got: $obtained")
+    assert(obtained.contains(TestUtils.missingField), s"Expected args error but got: $obtained")
   }

@@ -2,7 +2,7 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable}
 
 /**
  * Tests for automatic lifting of nested types: T[Restricted[A, D]] => Restricted[T[A], D]
@@ -14,7 +14,7 @@ import linearfn.RestrictedSelectable
  */
 @experimental
 class LiftingTest extends FunSuite:
-  import TestUtils.*
+
   import OpsExampleOps.*
 
   test("List[Restricted[A, D]] is automatically lifted in 2-tuple") {
@@ -64,7 +64,7 @@ class LiftingTest extends FunSuite:
     // This should fail because refs._1 is used in two different lists
     // Both lists would have dependency Tuple1[0], violating linearity
     // Correct number of args (2 in, 2 out), but refs._1 used twice
-    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("linearity violation: returning List and the element inside it") {
@@ -79,7 +79,7 @@ class LiftingTest extends FunSuite:
     // This should fail because we're returning both a List containing refs._1
     // and refs._1 itself - that's using refs._1 twice
     // Correct number of args (3 in, 3 out), but refs._1 used twice
-    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("linearity violation: same ref in Option and List") {
@@ -92,19 +92,19 @@ class LiftingTest extends FunSuite:
     """)
     // This should fail because refs._1 appears in both Option and List
     // Correct number of args (2 in, 2 out), but refs._1 used twice
-    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("wrong number of return arguments with nested types") {
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
-      RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+      RestrictedSelectable.LinearFn.strictApply(Tuple1(ex1))(refs =>
         (List(refs._1), List(refs._1))
       )
     """)
-    // This tests that we still catch wrong number of arguments
+    // This tests that we still catch wrong number of arguments with strictApply
     // 1 arg in, but returning 2 values (both Lists)
-    assert(obtained.contains(argsMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.strictFnFailed), s"obtained: $obtained")
   }
 
   test("linearity OK: different refs in different containers") {
@@ -178,7 +178,7 @@ class LiftingTest extends FunSuite:
     """)
     // If lifting works correctly, both list references have dependency Tuple1[0]
     // and returning them both violates linearity
-    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("known wrap types ok") {
@@ -199,7 +199,7 @@ class LiftingTest extends FunSuite:
     (option, refs._2)
   )
     """)
-    assert(obtained.contains(affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   test("unknown wrap types not ok without .lift") {
@@ -221,7 +221,7 @@ class LiftingTest extends FunSuite:
     (wrapped, refs._2)
   )
     """)
-    assert(obtained.contains(argsMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.missingTypeClassMsg), s"obtained: $obtained")
   }
 
   test("user-defined wrap types work with .lift and Liftable instance") {
@@ -257,5 +257,5 @@ class LiftingTest extends FunSuite:
       )
     """)
     // Should fail because both returns depend on refs._1
-    assert(obtained.contains(linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }

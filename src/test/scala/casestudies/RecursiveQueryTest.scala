@@ -1,12 +1,12 @@
 package test.casestudies
 
 import munit.FunSuite
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable}
 import scala.annotation.experimental
 import test.TestUtils
 
 class RecursiveQueryTest extends FunSuite:
-  import TestUtils.*
+
   import QueryOps.*
 
   test("Construct normal query") {
@@ -96,7 +96,7 @@ class RecursiveQueryTest extends FunSuite:
         (a1, a1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("Non-affine recursive query") {
@@ -107,7 +107,7 @@ class RecursiveQueryTest extends FunSuite:
         (a1.union(a1), a2)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   test("Non-Linear recursive query with map/flatMap/filter") {
@@ -122,7 +122,7 @@ class RecursiveQueryTest extends FunSuite:
         (r1, r1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("Non-affine recursive query with map/flatMap/filter") {
@@ -143,6 +143,6 @@ class RecursiveQueryTest extends FunSuite:
         (r1, r2)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 

@@ -1,6 +1,7 @@
 package test
 
-import linearfn.RestrictedSelectable
+import linearfn.{RestrictedSelectable}
+
 
 /**
  * Tests for RestrictedSelectable implementation.
@@ -16,7 +17,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         (refs._1, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedSelectable: manual non-linear") {
@@ -29,7 +30,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   test("RestrictedSelectable: manual non-affine") {
@@ -42,7 +43,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         (tmp, refs._1)
       )
     """)
-    assert(obtained.contains(TestUtils.linearMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }
 
   // Note: RestrictedSelectable doesn't support primitive operators since it uses Selectable, not Dynamic
@@ -52,7 +53,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
   //     val num = 42
   //     RestrictedSelectable.LinearFn.apply((str, num))(refs => (refs._2 + refs._2, refs._1))
   //   """)
-  //   assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+  //   assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   // }
 
   // Runtime tests for field and method access
@@ -124,7 +125,7 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         (combined, refs._2)
       )
     """)
-    assert(obtained.contains(TestUtils.affineMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
   test("Wrong # of arguments fails") {
@@ -144,5 +145,5 @@ class RestrictedSelectableTest extends LinearFnTestSuite(RestrictedSelectable, "
         Tuple1(combined)
       )
     """)
-    assert(obtained.contains(TestUtils.argsMsg), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"obtained: $obtained")
   }

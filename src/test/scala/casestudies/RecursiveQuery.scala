@@ -60,7 +60,7 @@ object Query:
   case class FlatMap[A, B]($from: Query[A], $query: Expr.Fun[A, Query[B]]) extends Query[B]
   case class Union[A]($left: Query[A], $right: Query[A]) extends Query[A]
   case class RecursiveQuery[Q <: Tuple](queries: Q) extends Query[Any]
-  export RestrictedSelectable.LinearFn.apply as fix
+  export RestrictedSelectable.LinearFn.strictApply as fix
 
 //object QueryOps:
 //  extension [A, D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Query[A], D, EmptyTuple])
