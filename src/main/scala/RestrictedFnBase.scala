@@ -383,14 +383,14 @@ abstract class RestrictedFnBase:
       tupleExecute(exec).asInstanceOf[RT]
 
     /**
-     * customApply - Fully customizable linear function with user-specified constraints.
+     * customApply - Fully customizable substructural constraint function with user-specified constraints.
      *
      * Allows users to specify:
      * - Vertical constraint (Linear/Affine/Relevant)
      * - Horizontal constraint (one of 4 pre-defined combinations)
      *
      * This method does NOT enforce strict size checking (n args = n returns).
-     * Use `apply` or `strictApply` if you need size constraints.
+     * Use `strictApply` if you need size and argument/return type constraints.
      *
      * Usage:
      * {{{
