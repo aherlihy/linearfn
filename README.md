@@ -1,4 +1,4 @@
-# LinearFn - Parametric Substructural Constraints in Scala 3
+# RestrictedFn - Parametric Substructural Constraints in Scala 3
 
 A Scala 3 library for enforcing flexible substructural constraints at compile time at the function level without modifying the compiler
 itself, using type-level programming with Match, Tuple, and Union types, and staging.
@@ -10,16 +10,16 @@ Example case studies are located in `test/casestudies`.
 
 ## Substructural Constraints 
 
-This library provides a `restrictedReturn` library function that enforces the substructural constraints specified by the user.
+This library provides a `restrictedFn` library function that enforces the substructural constraints specified by the user.
 
 1. **Traditional substructural types**: 
-    Users pass the desired multiplicity (linear, affine, relevant) to `restrictedReturn` and declare the types of the 
+    Users pass the desired multiplicity (linear, affine, relevant) to `restrictedFn` and declare the types of the 
     function parameters using the `@ops` annotation. The library enforces the specified constraints at compile time
     within the region of the function body.
     The definition of "use" is also customizable by the user on a per-method basis: the default behavior of methods of 
     types declared with `@ops` is equivalent to the `@consumed` annotation, indicating that a method consumes or "uses"
     the receiver.
-    Within the scope of a `restrictedReturn`, a `@consumed` method may be called according to the multiplicity level specified by the user.
+    Within the scope of a `restrictedFn`, a `@consumed` method may be called according to the multiplicity level specified by the user.
     This is the classical understanding of "use" of a value within a region (the function body),
     useful for resource management (file handles must be closed exactly once, transactions must be committed or rolled 
     back exactly once, etc.). Users can also customize methods as `@repeatable` (receiver must be unconsumed, but does 
@@ -396,10 +396,12 @@ case class MArray[A](private val buf: Array[A]):
   // Default: unconsumed → consumed (terminal operation)
   def freeze(): Array[A] = buf.clone()
 
+// Using default apply that enforces affine restrictions on use.
+
 // ✓ OK: write, then freeze
 LinearFn.apply(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  // EmptyTuple → EmptyTuple
-  val frozen = updated.freeze()       // EmptyTuple → Tuple1[true]
+  val updated = refs._1.write(0, 10)  
+  val frozen = updated.freeze()     
   Tuple1(frozen)
 )
 
@@ -420,30 +422,15 @@ LinearFn.apply(Tuple1(arr))(refs =>
 // ✗ ERROR: Can't write to consumed value
 LinearFn.apply(Tuple1(arr))(refs =>
   val consumed = refs._1.freeze()     // Unconsumed → consumed
-  val updated = consumed.write(0, 10) // ERROR: write requires EmptyTuple
+  val updated = consumed.write(0, 10) // ERROR: write not defined 
   Tuple1(updated)
 )
 
 // ✗ ERROR: Can't freeze twice
 LinearFn.apply(Tuple1(arr))(refs =>
   val frozen = refs._1.freeze()       // Unconsumed → consumed
-  val frozen2 = frozen.freeze()       // ERROR: freeze requires EmptyTuple
+  val frozen2 = frozen.freeze()       // ERROR: freeze not defined 
   Tuple1(frozen2)
-)
-```
-
-Use `applyConsumed` to require that all arguments are consumed:
-
-```scala
-val result = LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val frozen = refs._1.freeze()       // C = Tuple1[true] (default consumes)
-  Tuple1(frozen)                      // OK: frozen is consumed
-)
-
-// ERROR: write doesn't consume (marked @repeatable), so this fails
-LinearFn.applyConsumed(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  // C = EmptyTuple (@repeatable doesn't consume)
-  Tuple1(updated)                     // ERROR: must be consumed
 )
 ```
 
