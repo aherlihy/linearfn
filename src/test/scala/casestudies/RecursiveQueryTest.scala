@@ -88,6 +88,14 @@ class RecursiveQueryTest extends FunSuite:
     )
   }
 
+  test("Linear recursive query with outside ref unionAll") {
+    val q1 = Query[Int]()
+    val q2 = Query[Int]()
+    Query.fix(q1, q2)((a1, a2) =>
+      (a1.unionAll(q1), a2)
+    )
+  }
+
   test("Non-linear recursive query") {
     val obtained = compileErrors("""
       val q1 = Query[Int]()
@@ -105,6 +113,17 @@ class RecursiveQueryTest extends FunSuite:
       val q2 = Query[Int]()
       Query.fix(q1, q2)((a1, a2) =>
         (a1.union(a1), a2)
+      )
+    """)
+    assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
+  }
+
+  test("Non-affine recursive query with unionAll") {
+    val obtained = compileErrors("""
+      val q1 = Query[Int]()
+      val q2 = Query[Int]()
+      Query.fix(q1, q2)((a1, a2) =>
+        (a1.unionAll(a1), a2)
       )
     """)
     assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")

@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restrictedFn, repeatable}
+import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restricted, restrictedFn, repeatable}
 
 import scala.NamedTuple.AnyNamedTuple
 
@@ -52,6 +52,10 @@ class Query[A]():
 
   @repeatable
   def union(that: Query[A]): Query[A] =
+    Query.Union[A](this, that)
+
+  @repeatable
+  def unionAll(@restricted that: Query[A]): Query[A] =
     Query.Union[A](this, that)
 
 object Query:

@@ -192,6 +192,37 @@ class unconsumed extends StaticAnnotation
 class restrictedFn extends StaticAnnotation
 
 /**
+ * Marks a parameter as requiring a Restricted wrapper in generated extension methods.
+ *
+ * NOTE: This is the default behavior for all non-primitive parameters.
+ * This annotation is provided for explicitness and documentation purposes.
+ *
+ * By default, all non-primitive parameters are automatically Restricted (tracked).
+ * Use @restricted to explicitly document that a parameter should be tracked.
+ * Use @unrestricted to opt-out of tracking for specific parameters.
+ *
+ * Example:
+ * ```
+ * @ops
+ * class Query[A]:
+ *   // Explicitly marked as restricted (same as default)
+ *   def unionAll(@restricted that: Query[A]): Query[A] = ???
+ *
+ *   // Default behavior (implicitly restricted)
+ *   def union(that: Query[A]): Query[A] = ???
+ *
+ *   // Explicitly opt-out of tracking
+ *   def withConstant(@unrestricted value: A): Query[A] = ???
+ * ```
+ *
+ * All three parameter annotation behaviors:
+ * - @restricted: Parameter is wrapped in Restricted (explicit, same as default)
+ * - (no annotation): Parameter is wrapped in Restricted (default)
+ * - @unrestricted: Parameter is NOT wrapped in Restricted (opt-out)
+ */
+class restricted extends StaticAnnotation
+
+/**
  * Marks a parameter as NOT requiring a Restricted wrapper in generated extension methods.
  *
  * By default, all non-primitive parameters are automatically Restricted (tracked).

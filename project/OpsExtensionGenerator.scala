@@ -139,6 +139,14 @@ object OpsExtensionGenerator {
       }
     }
 
+    // Check for @restricted annotation on parameters
+    def hasRestrictedAnnot(param: Term.Param): Boolean = {
+      param.mods.exists {
+        case Mod.Annot(Init(Type.Name("restricted"), _, _)) => true
+        case _ => false
+      }
+    }
+
     // Check for @unrestricted annotation on parameters
     def hasUnrestrictedAnnot(param: Term.Param): Boolean = {
       param.mods.exists {
@@ -249,8 +257,17 @@ object OpsExtensionGenerator {
     } else {
       // Check each parameter for annotations
       val paramInfos = termParams.zipWithIndex.map { case (p, i) =>
+        val isRestricted = hasRestrictedAnnot(p)
         val isRestrictedFn = hasRestrictedFnAnnot(p)
         val isUnrestricted = hasUnrestrictedAnnot(p)
+
+        // Validate mutually exclusive annotations
+        if (isRestricted && isUnrestricted) {
+          throw new IllegalStateException(
+            s"Parameter ${p.name.value} in method $methodName has both @restricted and @unrestricted annotations, which are mutually exclusive"
+          )
+        }
+
         (p, i, isRestrictedFn, isUnrestricted)
       }
 
