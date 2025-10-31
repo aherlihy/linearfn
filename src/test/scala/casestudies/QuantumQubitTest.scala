@@ -2,7 +2,7 @@ package test.casestudies
 
 import munit.FunSuite
 import linearfn.{RestrictedSelectable}
-import linearfn.RestrictedSelectable.LinearFn
+import linearfn.RestrictedSelectable.RestrictedFn
 import test.TestUtils
 
 /**
@@ -19,7 +19,7 @@ class QuantumQubitTest extends FunSuite:
 
     // Build Bell pair: H on q1, then CNOT(q1→q2), then measure both
     val (m1, m2) =
-      LinearFn.apply((q1, q2)) { refs =>
+      RestrictedFn.apply((q1, q2)) { refs =>
         val q1h = refs._1.hadamard()
         val entangled = q1h.cnot(refs._2)
         // Extract qubits from the tuple result
@@ -42,7 +42,7 @@ class QuantumQubitTest extends FunSuite:
       val q2 = QuantumQubit.newQubit(false)
 
       // Same argument used twice in the returned tuple; other arg unused.
-      RestrictedSelectable.LinearFn.apply((q1, q2)) { refs =>
+      RestrictedSelectable.RestrictedFn.apply((q1, q2)) { refs =>
         (refs._1.hadamard(), refs._1.x())
       }
     """)
@@ -61,7 +61,7 @@ class QuantumQubitTest extends FunSuite:
       val q2 = QuantumQubit.newQubit(false)
 
       // Same handle used twice as control and target in one call.
-      RestrictedSelectable.LinearFn.apply((q1, q2)) { refs =>
+      RestrictedSelectable.RestrictedFn.apply((q1, q2)) { refs =>
         val pair = refs._1.cnot(refs._1)
         (pair._1, refs._2)
       }
@@ -78,7 +78,7 @@ class QuantumQubitTest extends FunSuite:
 
     // Measure q1, apply operation to q2 - both used exactly once
     val (m1, q2Final) =
-      LinearFn.apply((q1, q2)) { refs =>
+      RestrictedFn.apply((q1, q2)) { refs =>
         val m1 = refs._1.measure()
         val q2x = refs._2.x()
         (m1, q2x)

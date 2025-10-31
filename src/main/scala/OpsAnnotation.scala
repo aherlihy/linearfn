@@ -135,12 +135,12 @@ class unconsumed extends StaticAnnotation
  * Parameter-level annotation for function parameters where the function's return
  * type should be wrapped in Restricted.
  *
- * IMPORTANT RESTRICTION: @restrictedFn can ONLY be used on single-parameter
+ * IMPORTANT RESTRICTION: @restrictedReturn can ONLY be used on single-parameter
  * function types (A => B). It cannot be used on:
  * - Non-function parameters
  * - Multi-parameter functions like (A, B) => C
  *
- * When `@restrictedFn` is applied to a function parameter:
+ * When `@restrictedReturn` is applied to a function parameter:
  * - The function itself is NOT wrapped in Restricted
  * - The function's return type IS wrapped in Restricted
  * - Dependencies are tracked from the function's return value
@@ -155,8 +155,8 @@ class unconsumed extends StaticAnnotation
  *   // Regular parameter - entire parameter wrapped (default behavior)
  *   def union(that: Query[A]): Query[A]
  *
- *   // Function parameter with @restrictedFn - only return type wrapped
- *   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+ *   // Function parameter with @restrictedReturn - only return type wrapped
+ *   def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
  *
  *   // Completely unrestricted function
  *   def map[B](@unrestricted f: A => B): Query[B]
@@ -182,14 +182,14 @@ class unconsumed extends StaticAnnotation
  * {{{
  * @ops
  * class BadExamples[A]:
- *   // ERROR: @restrictedFn on non-function parameter
- *   def withOption(@restrictedFn opt: Option[A]): A
+ *   // ERROR: @restrictedReturn on non-function parameter
+ *   def withOption(@restrictedReturn opt: Option[A]): A
  *
- *   // ERROR: @restrictedFn on multi-parameter function
- *   def withMultiParam(@restrictedFn f: (A, B) => C): C
+ *   // ERROR: @restrictedReturn on multi-parameter function
+ *   def withMultiParam(@restrictedReturn f: (A, B) => C): C
  * }}}
  */
-class restrictedFn extends StaticAnnotation
+class restrictedReturn extends StaticAnnotation
 
 /**
  * Marks a parameter as requiring a Restricted wrapper in generated extension methods.

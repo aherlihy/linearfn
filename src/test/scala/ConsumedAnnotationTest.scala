@@ -12,7 +12,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
     val arr = MArray[Int](Array(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val updated = refs._1.write(0, 10)
       val frozen = updated.freeze()
       Tuple1(frozen)
@@ -26,7 +26,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
     val arr = MArray[Int](Array(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val updated = refs._1.write(0, 10)
       Tuple1(updated)
     )
@@ -41,7 +41,7 @@ class ConsumedAnnotationTest extends FunSuite:
 //
 //    val arr = MArray[Int](Array(1, 2, 3))
 //
-//      RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+//      RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
 //        val frozen = refs._1.freeze()
 //        (refs._1, frozen)  // Error: returning both original and consumed
 //      )
@@ -59,7 +59,7 @@ class ConsumedAnnotationTest extends FunSuite:
 //    import MArrayOps.*
 //
 //    // This now compiles successfully
-//    val result = RestrictedSelectable.LinearFn.apply(Tuple1(MArray[Int](Array(1, 2, 3))))(refs =>
+//    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(MArray[Int](Array(1, 2, 3))))(refs =>
 //      val frozen = refs._1.freeze()
 //      (refs._1, frozen)  // OK with non-strict apply
 //    )
@@ -74,7 +74,7 @@ class ConsumedAnnotationTest extends FunSuite:
     val arr = MArray[Int](Array(1, 2, 3))
 
     // This should work because freeze() consumes the array
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(arr))(refs =>
       val frozen = refs._1.freeze()
@@ -92,7 +92,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
       val arr = MArray[Int](Array(1, 2, 3))
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )(Tuple1(arr))(refs =>
         val updated = refs._1.write(0, 10)
@@ -114,7 +114,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
       val arr = MArray[Int](Array(1, 2, 3))
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )(Tuple1(arr))(refs =>
         val updated = refs._1.freeze().freeze()
@@ -136,7 +136,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
       val arr = MArray[Int](Array(1, 2, 3))
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
         val updated = refs._1.freeze().freeze()
         Tuple1(updated)
       )
@@ -154,7 +154,7 @@ class ConsumedAnnotationTest extends FunSuite:
     val arr1 = MArray[Int](Array(1, 2, 3))
     val arr2 = MArray[Int](Array(4, 5, 6))
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((arr1, arr2))(refs =>
       val frozen1 = refs._1.freeze()
@@ -171,7 +171,7 @@ class ConsumedAnnotationTest extends FunSuite:
 
     val arr = MArray[String](new Array[String](3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val afterWrites = refs._1
         .write(0, "a")
         .write(1, "b")

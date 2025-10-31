@@ -18,7 +18,7 @@ class OpsAnnotationTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       val combined = refs._1.singleRestrictedProductArg(refs._2)
       (combined, refs._1)
     )
@@ -30,7 +30,7 @@ class OpsAnnotationTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       val greeting1 = refs._1.noArg()
       val greeting2 = refs._2.noArg()
       (greeting1, greeting2)
@@ -43,7 +43,7 @@ class OpsAnnotationTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       val updated = refs._1.singleRestrictedPrimitiveArg("Alicia")
       (updated, refs._2)
     )
@@ -55,7 +55,7 @@ class OpsAnnotationTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
       val greeting = refs._1.multipleRestrictedPrimitiveArgs("Hi", "there!")
       (greeting, refs._2)
     )
@@ -67,7 +67,7 @@ class OpsAnnotationTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
       val intro = refs._1.restrictedProductArg_RestrictedPrimitiveArg(refs._2, "Hello")
       (intro, intro)
     )
@@ -79,7 +79,7 @@ class OpsAnnotationTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
       val comparison = refs._1.restrictedPrimitiveArg_RestrictedProductArg("Team", refs._2)
       (comparison, comparison)
     )
@@ -91,7 +91,7 @@ class OpsAnnotationTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
       val upperName = refs._1.noArgFieldAccess()
       (upperName, refs._2)
     )
@@ -103,7 +103,7 @@ class OpsAnnotationTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
       val combined = refs._1.singleRestrictedProductArg(refs._2)
       val greeting = combined.noArg()
       (greeting, greeting)
@@ -116,7 +116,7 @@ class OpsAnnotationTest extends FunSuite:
     val person = OpsExample("Alice", "30")
     val animal = Helper("cat", "meow")
 
-    val result = RestrictedSelectable.LinearFn.apply((person, animal))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person, animal))(refs =>
       val greeting = refs._1.singleRestrictedDifferentProductArg(refs._2)
       (greeting, greeting)
     )
@@ -128,7 +128,7 @@ class OpsAnnotationTest extends FunSuite:
     val person = OpsExample("Alice", "30")
     val animal = Helper("dog", "woof")
 
-    val result = RestrictedSelectable.LinearFn.apply((person, animal))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person, animal))(refs =>
       val intro = refs._1.restrictedDifferentProductArg_RestrictedPrimitiveArg(refs._2, "Hello")
       (intro, intro)
     )
@@ -141,7 +141,7 @@ class OpsAnnotationTest extends FunSuite:
     val person2 = OpsExample("Bob", "25")
     val animal = Helper("parrot", "squawk")
 
-    val result = RestrictedSelectable.LinearFn.apply((person1, person2, animal))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person1, person2, animal))(refs =>
       val combined = refs._1.singleRestrictedProductArg(refs._2)
       val greeting = combined.singleRestrictedDifferentProductArg(refs._3)
       (greeting, greeting, greeting)
@@ -154,7 +154,7 @@ class OpsAnnotationTest extends FunSuite:
     val person = OpsExample("Alice", "30")
     val trackedHelper = Helper("cat", "meow")
 
-    val result = RestrictedSelectable.LinearFn.apply((person, trackedHelper))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((person, trackedHelper))(refs =>
       // Pass refs._2 TWICE: once as tracked (first param), once as @unrestricted (second param)
       // This would normally violate linearity, but @unrestricted makes the second usage not count
       // comparison only tracks dependency from first param (index 1) and receiver (index 0)

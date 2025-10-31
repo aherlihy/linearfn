@@ -9,7 +9,7 @@ import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
  * - All arguments must appear at least once across all returns
  * - No argument can appear more than once in any single return
  */
-class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectable, "RestrictedSelectableMulti"):
+class RestrictedSelectableMultiTest extends RestrictedFnTestSuite(RestrictedSelectable, "RestrictedSelectableMulti"):
 
   // =========================
   // 1 Return Value Tests
@@ -20,7 +20,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       import linearfn.{RestrictedSelectable, VerticalConstraint, HorizontalConstraint}
       val str = "hello"
       val num = 42
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((str, num))(refs =>
         Tuple1(refs._1)  // Missing refs._2
@@ -35,11 +35,11 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       case class Combined(s: String, n: Int)
       val str = "hello"
       val num = 42
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((str, num))(refs =>
         // Both args used in single return - violates affine per-return constraint
-        val combined = RestrictedSelectable.Restricted.LinearRef[Combined, EmptyTuple, EmptyTuple](() => Combined("test", 1))
+        val combined = RestrictedSelectable.Restricted.RestrictedRef[Combined, EmptyTuple, EmptyTuple](() => Combined("test", 1))
         Tuple1(combined)
       )
     """)
@@ -58,7 +58,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val b = Data(2)
       val c = Data(3)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b, c))(refs =>
         (refs._1, refs._2)  // Missing refs._3
@@ -75,7 +75,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val b = Data(2)
       val c = Data(3)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b, c))(refs =>
         (refs._1, refs._1)  // Missing refs._2 and refs._3
@@ -93,7 +93,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val a = Data(1)
     val b = Data(2)
 
-    val result = RestrictedSelectable.LinearFn.apply((a, b))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((a, b))(refs =>
       (refs._1, refs._2)
     )
 
@@ -107,7 +107,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val b = Data(2)
     val c = Data(3)
 
-    val result = RestrictedSelectable.LinearFn.apply((a, b, c))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((a, b, c))(refs =>
       (refs._1, refs._2, refs._3)
     )
 
@@ -125,7 +125,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val a = Data(1)
     val b = Data(2)
 
-    val result = RestrictedSelectable.LinearFn.apply((a, b))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((a, b))(refs =>
       (refs._1, refs._2, refs._1)  // refs._1 used in positions 0 and 2
     )
 
@@ -139,7 +139,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val a = Data(1)
     val b = Data(2)
 
-    val result = RestrictedSelectable.LinearFn.apply((a, b))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((a, b))(refs =>
       (refs._1, refs._2, refs._1, refs._2)
     )
 
@@ -155,7 +155,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val b = Data(2)
     val c = Data(3)
 
-    val result = RestrictedSelectable.LinearFn.apply((a, b, c))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((a, b, c))(refs =>
       (refs._1, refs._2, refs._3, refs._1, refs._2)
     )
 
@@ -174,11 +174,11 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val a = Data(1)
       val b = Data(2)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b))(refs =>
         // Manually create a return value that uses both args
-        val combined = RestrictedSelectable.Restricted.LinearRef[Combined, (0, 1), EmptyTuple](() => Combined(1, 2))
+        val combined = RestrictedSelectable.Restricted.RestrictedRef[Combined, (0, 1), EmptyTuple](() => Combined(1, 2))
         (combined, refs._1, refs._2)  // combined uses both 0 and 1
       )
     """)
@@ -192,7 +192,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val a = Data(1)
       val b = Data(2)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b))(refs =>
         (refs._1, refs._1, refs._1)  // Missing refs._2
@@ -212,7 +212,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val a = Data(1)
       val b = Data(2)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b))(refs =>
         // refs._1 and refs._2 are unconsumed (C = EmptyTuple)
@@ -231,7 +231,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val a = Box(1)
       val b = Box(2)
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )((a, b))(refs =>
         (refs._1, refs._2, refs._1, refs._2)
@@ -248,7 +248,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     case class Data(value: Int)
     val a = Data(42)
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(a))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(a))(refs =>
       (refs._1, refs._1, refs._1)
     )
 
@@ -263,7 +263,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
     val p2 = Point(3, 4)
     val p3 = Point(5, 6)
 
-    val result = RestrictedSelectable.LinearFn.apply((p1, p2, p3))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((p1, p2, p3))(refs =>
       // Use each point at least once, distribute across 5 returns
       (refs._1, refs._2, refs._3, refs._1, refs._2)
     )
@@ -286,7 +286,7 @@ class RestrictedSelectableMultiTest extends LinearFnTestSuite(RestrictedSelectab
       val a = Data(1)
       val b = Data(2)
 
-      RestrictedSelectable.LinearFn.strictApply((a, b))(refs =>
+      RestrictedSelectable.RestrictedFn.strictApply((a, b))(refs =>
         (refs._1, refs._2, refs._1)  // 3 returns for 2 args - should fail
       )
     """)

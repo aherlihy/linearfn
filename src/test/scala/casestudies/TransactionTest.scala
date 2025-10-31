@@ -21,7 +21,7 @@ class TransactionTest extends FunSuite:
     val tx = Transaction.begin()
 
     // customApply with Linear: ensures commit() or rollback() is called
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(tx))(refs =>
       val tx2 = refs._1.insert("users", "Alice, 30")
@@ -37,7 +37,7 @@ class TransactionTest extends FunSuite:
 
     val tx = Transaction.begin()
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(tx))(refs =>
       val tx2 = refs._1.insert("users", "Bob, 25")
@@ -53,7 +53,7 @@ class TransactionTest extends FunSuite:
 
     val tx = Transaction.begin()
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(tx))(refs =>
       val tx2 = refs._1
@@ -76,7 +76,7 @@ class TransactionTest extends FunSuite:
 
       val tx = Transaction.begin()
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )(Tuple1(tx))(refs =>
         val tx2 = refs._1.insert("users", "Data")
@@ -96,7 +96,7 @@ class TransactionTest extends FunSuite:
 
       val tx = Transaction.begin()
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(tx))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(tx))(refs =>
         val status = refs._1.commit().insert("users", "oops")  // Error: insert after @consumed commit
         Tuple1(status)
       )
@@ -114,7 +114,7 @@ class TransactionTest extends FunSuite:
 
       val tx = Transaction.begin()
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(tx))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(tx))(refs =>
         val status = refs._1.rollback().insert("users", "oops")  // Error: insert after @consumed rollback
         Tuple1(status)
       )

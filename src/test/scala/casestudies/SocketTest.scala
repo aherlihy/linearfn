@@ -21,7 +21,7 @@ class SocketTest extends FunSuite:
     val socket = Socket.connect("localhost:8080")
 
     // customApply with Linear: ensures close() is called
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(socket))(refs =>
       val sent = refs._1.send("Hello")
@@ -37,7 +37,7 @@ class SocketTest extends FunSuite:
 
     val socket = Socket.connect("localhost:8080")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(socket))(refs =>
       val sent = refs._1.send("Msg1").send("Msg2").send("Msg3")
@@ -56,7 +56,7 @@ class SocketTest extends FunSuite:
 //
 //    // Single LinearFn scope: receive returns Restricted[(Socket, String), ...]
 //    // We close without extracting the message content
-//    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(socket))(refs =>
+//    val result = RestrictedSelectable.RestrictedFn.applyConsumed(Tuple1(socket))(refs =>
 //      val sent = refs._1.send("Hello")
 //      val receiveResult = sent.receive()  // @unconsumed: Restricted[(Socket, String), ...]
 //      // Can't destructure inside, so just close
@@ -76,7 +76,7 @@ class SocketTest extends FunSuite:
 
       val socket = Socket.connect("localhost:8080")
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )(Tuple1(socket))(refs =>
         val sent = refs._1.send("Data")
@@ -96,7 +96,7 @@ class SocketTest extends FunSuite:
 
       val socket = Socket.connect("localhost:8080")
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(socket))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(socket))(refs =>
         val status = refs._1.close().send("oops")  // Error: send after @consumed close
         Tuple1(status)
       )

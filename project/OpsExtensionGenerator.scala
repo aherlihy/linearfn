@@ -155,10 +155,10 @@ object OpsExtensionGenerator {
       }
     }
 
-    // Check for @restrictedFn annotation on parameters
+    // Check for @restrictedReturn annotation on parameters
     def hasRestrictedFnAnnot(param: Term.Param): Boolean = {
       param.mods.exists {
-        case Mod.Annot(Init(Type.Name("restrictedFn"), _, _)) => true
+        case Mod.Annot(Init(Type.Name("restrictedReturn"), _, _)) => true
         case _ => false
       }
     }
@@ -175,15 +175,15 @@ object OpsExtensionGenerator {
         case Type.Function(params, _) =>
           // Multi-parameter function - error
           throw new IllegalStateException(
-            s"@restrictedFn can only be used on single-parameter functions (A => B), not on ${tpe.toString} " +
+            s"@restrictedReturn can only be used on single-parameter functions (A => B), not on ${tpe.toString} " +
             s"which has ${params.size} parameters. " +
-            s"Valid usage: def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]"
+            s"Valid usage: def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]"
           )
         case _ =>
           // Not a function - error
           throw new IllegalStateException(
-            s"@restrictedFn can only be used on function parameters, not on ${tpe.toString}. " +
-            s"Valid usage: def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]"
+            s"@restrictedReturn can only be used on function parameters, not on ${tpe.toString}. " +
+            s"Valid usage: def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]"
           )
       }
     }
@@ -284,7 +284,7 @@ object OpsExtensionGenerator {
           // @unrestricted function - uses implicit conversion, no type params
           Nil
         } else {
-          // Everything else needs type params (tracked params, product types, @restrictedFn types)
+          // Everything else needs type params (tracked params, product types, @restrictedReturn types)
           Seq(s"D${i + 1} <: Tuple", s"C${i + 1} <: Tuple")
         }
       }
@@ -302,7 +302,7 @@ object OpsExtensionGenerator {
           // @unrestricted function - use plain type, implicit conversion handles wrapping
           s"$paramName: ${paramType.toString}"
         } else if (isRestrictedFn) {
-          // Has @restrictedFn annotation - transform the function return type
+          // Has @restrictedReturn annotation - transform the function return type
           s"$paramName: ${transformFunctionReturnType(paramType, i)}"
         } else {
           // Default tracked or @unrestricted product - wrap with Restricted

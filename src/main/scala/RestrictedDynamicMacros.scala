@@ -11,7 +11,7 @@ import Utils.*
 /**
  * Use Dynamic but with macros for type safety.
  */
-object RestrictedDynamicMacros extends LinearFnBase:
+object RestrictedDynamicMacros extends RestrictedFnBase:
 
   // Implementation-specific Restricted trait - extends RestrictedBase
   trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Dynamic:
@@ -24,11 +24,11 @@ object RestrictedDynamicMacros extends LinearFnBase:
 
     def execute(): A
 
-  // Implementation-specific LinearRef
+  // Implementation-specific RestrictedRef
   object Restricted:
-    case class LinearRef[A, D <: Tuple, C <: Tuple](val fn: () => A) extends Restricted[A, D, C]:
+    case class RestrictedRef[A, D <: Tuple, C <: Tuple](val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
-  // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
-    Restricted.LinearRef(fn)
+  // Implement abstract methods from RestrictedFnBase
+  protected def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
+    Restricted.RestrictedRef(fn)

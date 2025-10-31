@@ -9,7 +9,7 @@ import test.casestudies.{FileHandle, FileHandleOps}
  * Note: These tests demonstrate that customApply works, though some constraint
  * combinations are difficult to test directly without more complex setup.
  */
-class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApply"):
+class CustomApplyTest extends RestrictedFnTestSuite(RestrictedSelectable, "CustomApply"):
   import OpsExampleOps.*
   import FileHandleOps.*
 
@@ -21,7 +21,7 @@ class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApp
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((a, b))(refs =>
       (refs._1, refs._2, refs._1)
@@ -36,7 +36,7 @@ class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApp
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((a, b))(refs =>
       (refs._1, refs._2)
@@ -50,7 +50,7 @@ class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApp
     val a = FileHandle.open("a.txt")
     val b = FileHandle.open("b.txt")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((a, b))(refs =>
       (refs._1.close(), refs._2.close())
@@ -64,7 +64,7 @@ class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApp
     val a = FileHandle.open("a.txt")
     val b = FileHandle.open("b.txt")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Relevant, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((a, b))(refs =>
       (refs._1.close(), refs._2.close())
@@ -81,13 +81,13 @@ class CustomApplyTest extends LinearFnTestSuite(RestrictedSelectable, "CustomApp
     val b2 = OpsExample("b")
 
     // customApply with default constraints should behave like apply
-    val customResult = RestrictedSelectable.LinearFn.customApply(
+    val customResult = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )((a1, b1))(refs =>
       (refs._1, refs._2)
     )
 
-    val standardResult = RestrictedSelectable.LinearFn.apply((a2, b2))(refs =>
+    val standardResult = RestrictedSelectable.RestrictedFn.apply((a2, b2))(refs =>
       (refs._1, refs._2)
     )
 

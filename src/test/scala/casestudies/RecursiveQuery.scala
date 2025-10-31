@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restricted, restrictedFn, repeatable}
+import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restricted, restrictedReturn, repeatable}
 
 import scala.NamedTuple.AnyNamedTuple
 
@@ -36,7 +36,7 @@ object Expr:
 @ops
 class Query[A]():
   @repeatable
-  def flatMap[B](@restrictedFn f: Expr.Ref[A] => Query[B]): Query[B] =
+  def flatMap[B](@restrictedReturn f: Expr.Ref[A] => Query[B]): Query[B] =
     val ref = Expr.Ref[A]()
     Query.FlatMap(this, Expr.Fun(ref, f(ref)))
 
@@ -64,7 +64,7 @@ object Query:
   case class FlatMap[A, B]($from: Query[A], $query: Expr.Fun[A, Query[B]]) extends Query[B]
   case class Union[A]($left: Query[A], $right: Query[A]) extends Query[A]
   case class RecursiveQuery[Q <: Tuple](queries: Q) extends Query[Any]
-  export RestrictedSelectable.LinearFn.strictApply as fix
+  export RestrictedSelectable.RestrictedFn.strictApply as fix
 
 //object QueryOps:
 //  extension [A, D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Query[A], D, EmptyTuple])

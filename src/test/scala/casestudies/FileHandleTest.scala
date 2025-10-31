@@ -20,7 +20,7 @@ class FileHandleTest extends FunSuite:
     val file = FileHandle.open("test.txt")
 
     // customApply with Linear: ensures all arguments are consumed (close is called)
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(file))(refs =>
       val written = refs._1.write("Hello World")
@@ -36,7 +36,7 @@ class FileHandleTest extends FunSuite:
 
     val file = FileHandle.open("test.txt")
 
-    val result = RestrictedSelectable.LinearFn.customApply(
+    val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
     )(Tuple1(file))(refs =>
       val file2 = refs._1.write("Line 1\n").write("Line 2\n").write("Line 3\n")
@@ -55,7 +55,7 @@ class FileHandleTest extends FunSuite:
 //
 //    // Single LinearFn scope: read returns Restricted[(FileHandle, String), ...]
 //    // We can't destructure inside, so we return the tuple then close
-//    val result = RestrictedSelectable.LinearFn.applyConsumed(Tuple1(file))(refs =>
+//    val result = RestrictedSelectable.RestrictedFn.applyConsumed(Tuple1(file))(refs =>
 //      val written = refs._1.write("Hello World")
 //      val readResult = written.read()  // @unconsumed: Restricted[(FileHandle, String), ...]
 //      // readResult is a Restricted wrapper around a tuple
@@ -77,7 +77,7 @@ class FileHandleTest extends FunSuite:
 
       val file = FileHandle.open("test.txt")
 
-      RestrictedSelectable.LinearFn.customApply(
+      RestrictedSelectable.RestrictedFn.customApply(
         (vertical = VerticalConstraint.Linear, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
       )(Tuple1(file))(refs =>
         val written = refs._1.write("Data")
@@ -97,7 +97,7 @@ class FileHandleTest extends FunSuite:
 
       val file = FileHandle.open("test.txt")
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(file))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(file))(refs =>
         val status = refs._1.close().write("oops")  // Error: write after @consumed close
         Tuple1(status)
       )

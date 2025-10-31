@@ -12,7 +12,7 @@ import scala.reflect.Selectable.reflectiveSelectable
  * TODO: for applyDynamic to work, seems the user needs to manually declare methods somewhere, not sure if there's a way to do that without leaking Restricted.
  * Good because type safe, but doesn't work out of the box with non-product types, and requires users to define functions.
  */
-object RestrictedSelectable extends LinearFnBase:
+object RestrictedSelectable extends RestrictedFnBase:
 
   // Implementation-specific Restricted trait - extends RestrictedBase
   trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Selectable:
@@ -37,11 +37,11 @@ object RestrictedSelectable extends LinearFnBase:
     def execute(): A
 
   object Restricted:
-    case class LinearRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
+    case class RestrictedRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
       override def stageField(name: String) =
-        LinearRef(() =>
+        RestrictedRef(() =>
           val obj = fn()
           val field = obj.getClass.getDeclaredField(name)
           field.setAccessible(true)
@@ -49,12 +49,12 @@ object RestrictedSelectable extends LinearFnBase:
         )
 
       override def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2] = {
-        LinearRef[R, D2, C2](() =>
+        RestrictedRef[R, D2, C2](() =>
           val obj = fn()
 
           // Helper to unwrap Restricted values from function return types
-          // This is needed because @restrictedFn can appear on function parameters like:
-          //   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+          // This is needed because @restrictedReturn can appear on function parameters like:
+          //   def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
           // The generated extension receives: f: A => Restricted[Query[B], D, C]
           // But the actual method expects: f: A => Query[B]
           // So we wrap the function to unwrap its Restricted return value
@@ -102,7 +102,7 @@ object RestrictedSelectable extends LinearFnBase:
     // Implicit conversion to allow plain values where Restricted is expected
     given [S]: Conversion[S, Restricted[S, EmptyTuple, EmptyTuple]] with
       def apply(value: S): Restricted[S, EmptyTuple, EmptyTuple] =
-        LinearRef[S, EmptyTuple, EmptyTuple](() => value)
+        RestrictedRef[S, EmptyTuple, EmptyTuple](() => value)
 
     /**
      * Type class for user-defined liftable containers.
@@ -124,15 +124,15 @@ object RestrictedSelectable extends LinearFnBase:
      * given Liftable[Box] with
      *   def map[A, B](fa: Box[A])(f: A => B) = Box(f(fa.contents))
      *
-     * val result = LinearFn.apply((ex1, ex2))(refs =>
+     * val result = RestrictedFn.apply((ex1, ex2))(refs =>
      *   (Box(refs._1).lift, refs._2)  // .lift normalizes the type
      * )
      * }}}
      */
     extension [F[_], A, D <: Tuple, C <: Tuple](container: F[Restricted[A, D, C]])(using ev: Liftable[F])
       def lift: Restricted[F[A], D, C] =
-        LinearRef[F[A], D, C](() => ev.map(container)(_.execute()))
+        RestrictedRef[F[A], D, C](() => ev.map(container)(_.execute()))
 
-  // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
-    Restricted.LinearRef(fn)
+  // Implement abstract methods from RestrictedFnBase
+  protected def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
+    Restricted.RestrictedRef(fn)

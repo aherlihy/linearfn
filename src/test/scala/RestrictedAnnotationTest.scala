@@ -1,21 +1,21 @@
 package test
 
 import munit.FunSuite
-import linearfn.{RestrictedSelectable, ops, restrictedFn, unrestricted, repeatable}
+import linearfn.{RestrictedSelectable, ops, restrictedReturn, unrestricted, repeatable}
 import scala.annotation.experimental
 
 /**
- * Tests for @restrictedFn parameter-level annotation.
+ * Tests for @restrictedReturn parameter-level annotation.
  *
- * @restrictedFn allows precise control over function parameters where the function's
+ * @restrictedReturn allows precise control over function parameters where the function's
  * return type should be wrapped in Restricted, but not the function itself.
  */
 
-// Test case for higher-order functions with @restrictedFn
+// Test case for higher-order functions with @restrictedReturn
 @ops
 case class TestQuery[A](data: List[A]):
   @repeatable
-  def flatMap[B](@restrictedFn f: A => TestQuery[B]): TestQuery[B] =
+  def flatMap[B](@restrictedReturn f: A => TestQuery[B]): TestQuery[B] =
     TestQuery(data.flatMap(a => f(a).data))
 
   @repeatable
@@ -40,20 +40,20 @@ class RestrictedAnnotationTest extends FunSuite:
 
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(q))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(q))(refs =>
       Tuple1(refs._1.map((x: Int) => x * 2))
     )
 
     assertEquals(result._1.data, List(2, 4, 6))
   }
 
-   test("TestQuery.flatMap with @restrictedFn - tracks inner TestQuery[B] dependencies") {
+   test("TestQuery.flatMap with @restrictedReturn - tracks inner TestQuery[B] dependencies") {
      import TestQueryOps.*
 
      val q1 = TestQuery(List(1, 2, 3))
      val q2 = TestQuery(List(10, 20))
 
-     val result = RestrictedSelectable.LinearFn.apply((q1, q2))(refs =>
+     val result = RestrictedSelectable.RestrictedFn.apply((q1, q2))(refs =>
        (refs._1.flatMap(x => refs._2), refs._1)
      )
 
@@ -65,7 +65,7 @@ class RestrictedAnnotationTest extends FunSuite:
 
     val q = TestQuery(List(1, 2, 3, 4, 5))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(q))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(q))(refs =>
       val filtered = refs._1.filter((x: Int) => x > 2)
       Tuple1(filtered)
     )
@@ -80,7 +80,7 @@ class RestrictedAnnotationTest extends FunSuite:
     // are correctly preserved in the generated extension methods
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(q))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(q))(refs =>
       // [String] should be preserved as a type parameter
       val stringQuery = refs._1.map[String]((x: Int) => x.toString)
       Tuple1(stringQuery)
@@ -97,7 +97,7 @@ class RestrictedAnnotationTest extends FunSuite:
        val q1 = TestQuery(List(1, 2))
        val q2 = TestQuery(List(10, 20))
 
-       RestrictedSelectable.LinearFn.apply((q1, q2))(refs =>
+       RestrictedSelectable.RestrictedFn.apply((q1, q2))(refs =>
          val combined = refs._2.flatMap((x: Int) => refs._2)
          // Error: refs._2 used twice (once in flatMap body, once in return)
          (combined, refs._2)
@@ -107,7 +107,7 @@ class RestrictedAnnotationTest extends FunSuite:
     assert(obtained.contains(TestUtils.horizontalRelevanceFailed), s"Expected linearity error but got: $obtained")
   }
 
-  test("@restrictedFn runtime correctness - function actually receives unwrapped value") {
+  test("@restrictedReturn runtime correctness - function actually receives unwrapped value") {
     import TestQueryOps.*
 
     val q1 = TestQuery(List(1, 2, 3))
@@ -115,7 +115,7 @@ class RestrictedAnnotationTest extends FunSuite:
 
     // Test that the function parameter receives an Int (not Restricted[Int, _, _])
     // and can return a Restricted query that gets properly unwrapped
-    val result = RestrictedSelectable.LinearFn.apply((q1, q2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((q1, q2))(refs =>
       val transformed = refs._1.flatMap { (x: Int) =>
         // x should be a plain Int
         // we return refs._2 which should be properly tracked
@@ -128,14 +128,14 @@ class RestrictedAnnotationTest extends FunSuite:
     assertEquals(result._1.data, List(100, 100, 100))
   }
 
-  test("@restrictedFn runtime correctness - nested function calls") {
+  test("@restrictedReturn runtime correctness - nested function calls") {
     import TestQueryOps.*
 
     val q1 = TestQuery(List(1, 2))
     val q2 = TestQuery(List(10, 20))
     val q3 = TestQuery(List(100, 200, 300))
 
-    val result = RestrictedSelectable.LinearFn.apply((q1, q2, q3))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((q1, q2, q3))(refs =>
       // Chain multiple flatMaps
       val step1 = refs._1.flatMap { x =>
         refs._2  // For each element in q1, return q2
@@ -152,12 +152,12 @@ class RestrictedAnnotationTest extends FunSuite:
     assertEquals(result._1.data.forall(x => List(100, 200, 300).contains(x)), true, "All elements should be from q3")
   }
 
-  test("@restrictedFn runtime correctness - mixed tracked and unrestricted") {
+  test("@restrictedReturn runtime correctness - mixed tracked and unrestricted") {
     import TestQueryOps.*
 
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(q))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(q))(refs =>
       // First use @unrestricted map to transform values
       val doubled = refs._1.map((x: Int) => x * 2)
       // Then use filter (also @unrestricted)
@@ -176,7 +176,7 @@ class RestrictedAnnotationTest extends FunSuite:
 
     // combine takes a regular function parameter (wrapped in Restricted via implicit conversion)
     // The function itself is not tracked, it's just a plain function wrapped via implicit
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(q1))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(q1))(refs =>
       // Plain function is implicitly converted to Restricted[A => TestQuery[B], EmptyTuple, EmptyTuple]
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       Tuple1(transformed)
@@ -185,44 +185,44 @@ class RestrictedAnnotationTest extends FunSuite:
     assertEquals(result._1.data, List(2, 4, 6))
   }
 
-  test("Regular function vs @restrictedFn vs @unrestricted - comparison") {
+  test("Regular function vs @restrictedReturn vs @unrestricted - comparison") {
     import TestQueryOps.*
 
     val q1 = TestQuery(List(1, 2))
     val q2 = TestQuery(List(100))
 
-    // @restrictedFn: only tracks return type, so we can return refs._2
-    val result1 = RestrictedSelectable.LinearFn.apply((q1, q2))(refs =>
+    // @restrictedReturn: only tracks return type, so we can return refs._2
+    val result1 = RestrictedSelectable.RestrictedFn.apply((q1, q2))(refs =>
       (refs._1.flatMap((x: Int) => refs._2), refs._1)
     )
     assertEquals(result1._1.data, List(100, 100))
 
     // @unrestricted: doesn't track anything
-    val result2 = RestrictedSelectable.LinearFn.apply(Tuple1(q1))(refs =>
+    val result2 = RestrictedSelectable.RestrictedFn.apply(Tuple1(q1))(refs =>
       Tuple1(refs._1.map((x: Int) => x * 10))
     )
     assertEquals(result2._1.data, List(10, 20))
 
     // Regular (no annotation): tracks entire function via implicit conversion
     // Can't reference refs inside because function is implicitly converted (not tracked dynamically)
-    val result3 = RestrictedSelectable.LinearFn.apply(Tuple1(q1))(refs =>
+    val result3 = RestrictedSelectable.RestrictedFn.apply(Tuple1(q1))(refs =>
       Tuple1(refs._1.combine((x: Int) => TestQuery(List(x + 1000))))
     )
     assertEquals(result3._1.data, List(1001, 1002))
   }
 
-  // Note: Negative tests for @restrictedFn are validated at build time by OpsExtensionGenerator
+  // Note: Negative tests for @restrictedReturn are validated at build time by OpsExtensionGenerator
   // and produce warnings during source generation, not compile-time errors that can be caught
   // by compileErrors. The following would fail during sbt compilation with appropriate errors:
   //
-  // INVALID: @restrictedFn on non-function parameter
+  // INVALID: @restrictedReturn on non-function parameter
   // @ops
   // case class InvalidTest1[A](opt: Option[A]):
-  //   def bad(@restrictedFn fallback: Option[A]): A = opt.getOrElse(fallback.get)
-  // Error: "@restrictedFn can only be used on function parameters, not on Option[A]"
+  //   def bad(@restrictedReturn fallback: Option[A]): A = opt.getOrElse(fallback.get)
+  // Error: "@restrictedReturn can only be used on function parameters, not on Option[A]"
   //
-  // INVALID: @restrictedFn on multi-parameter function
+  // INVALID: @restrictedReturn on multi-parameter function
   // @ops
   // case class InvalidTest2[A](items: List[A]):
-  //   def bad(@restrictedFn f: (A, A) => A): List[A] = items.map(x => f(x, x))
-  // Error: "@restrictedFn can only be used on single-parameter functions (A => B), not on (A, A) => A which has 2 parameters"
+  //   def bad(@restrictedReturn f: (A, A) => A): List[A] = items.map(x => f(x, x))
+  // Error: "@restrictedReturn can only be used on single-parameter functions (A => B), not on (A, A) => A which has 2 parameters"

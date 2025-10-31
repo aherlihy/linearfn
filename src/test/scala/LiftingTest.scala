@@ -21,7 +21,7 @@ class LiftingTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       // Create a list containing one Restricted element
       // The tuple conversion should automatically lift it
       (List(refs._1), refs._2)
@@ -34,7 +34,7 @@ class LiftingTest extends FunSuite:
   test("Option[Restricted[A, D]] is automatically lifted in 1-tuple") {
     val ex1 = OpsExample("Alice", "30")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(ex1))(refs =>
       // The tuple conversion should automatically lift the Option
       Tuple1(Option(refs._1))
     )
@@ -45,7 +45,7 @@ class LiftingTest extends FunSuite:
   test("Vector[Restricted[A, D]] is automatically lifted in 1-tuple") {
     val ex1 = OpsExample("Alice", "30")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(ex1))(refs =>
       // The tuple conversion should automatically lift the Vector
       Tuple1(Vector(refs._1))
     )
@@ -57,7 +57,7 @@ class LiftingTest extends FunSuite:
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
       val ex2 = OpsExample("Bob", "25")
-      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
         (List(refs._1), List(refs._1))
       )
     """)
@@ -72,7 +72,7 @@ class LiftingTest extends FunSuite:
       val ex1 = OpsExample("Alice", "30")
       val ex2 = OpsExample("Bob", "25")
       val ex3 = OpsExample("Charlie", "35")
-      RestrictedSelectable.LinearFn.apply((ex1, ex2, ex3))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((ex1, ex2, ex3))(refs =>
         (List(refs._1), refs._1, refs._2)
       )
     """)
@@ -86,7 +86,7 @@ class LiftingTest extends FunSuite:
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
       val ex2 = OpsExample("Bob", "25")
-      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
         (Option(refs._1), List(refs._1))
       )
     """)
@@ -98,7 +98,7 @@ class LiftingTest extends FunSuite:
   test("wrong number of return arguments with nested types") {
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
-      RestrictedSelectable.LinearFn.strictApply(Tuple1(ex1))(refs =>
+      RestrictedSelectable.RestrictedFn.strictApply(Tuple1(ex1))(refs =>
         (List(refs._1), List(refs._1))
       )
     """)
@@ -112,7 +112,7 @@ class LiftingTest extends FunSuite:
     val ex2 = OpsExample("Bob", "25")
 
     // This is fine - refs._1 in first container, refs._2 in second
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       (List(refs._1), Option(refs._2))
     )
 
@@ -124,7 +124,7 @@ class LiftingTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       // Create a nested list structure
       val innerList = List(refs._1)
       val nestedList = List(innerList)
@@ -138,7 +138,7 @@ class LiftingTest extends FunSuite:
   test("nested List[Option[Restricted[A, D]]] is automatically lifted") {
     val ex1 = OpsExample("Alice", "30")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(ex1))(refs =>
       // Create nested List[Option[...]]
       val opt = Option(refs._1)
       val listOfOpt = List(opt)
@@ -151,7 +151,7 @@ class LiftingTest extends FunSuite:
   test("deeply nested List[List[List[Restricted[A, D]]]] is automatically lifted") {
     val ex1 = OpsExample("Alice", "30")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(ex1))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(ex1))(refs =>
       // Create deeply nested structure
       val inner = List(refs._1)
       val middle = List(inner)
@@ -171,7 +171,7 @@ class LiftingTest extends FunSuite:
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
       val ex2 = OpsExample("Bob", "25")
-      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
         val list = List(refs._1)
         (list, list)  // Trying to return the same list twice
       )
@@ -194,7 +194,7 @@ class LiftingTest extends FunSuite:
 
   val person1 = Person("Alice", 30)
   val person2 = Person("Bob", 25)
-  val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+  val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
     val option = Option(refs._1.combine(refs._1))
     (option, refs._2)
   )
@@ -216,7 +216,7 @@ class LiftingTest extends FunSuite:
 
   val person1 = Person("Alice", 30)
   val person2 = Person("Bob", 25)
-  val result = RestrictedSelectable.LinearFn.apply((person1, person2))(refs =>
+  val result = RestrictedSelectable.RestrictedFn.apply((person1, person2))(refs =>
     val wrapped = Wrap(refs._1.combine(refs._2))
     (wrapped, refs._2)
   )
@@ -233,7 +233,7 @@ class LiftingTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
       val wrapped = Wrap(refs._1).lift
       (wrapped, refs._2)
     )
@@ -251,7 +251,7 @@ class LiftingTest extends FunSuite:
     val obtained = compileErrors("""
       val ex1 = OpsExample("Alice", "30")
       val ex2 = OpsExample("Bob", "25")
-      RestrictedSelectable.LinearFn.apply((ex1, ex2))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((ex1, ex2))(refs =>
         val wrapped = Wrap(refs._1).lift
         (wrapped, wrapped)  // Trying to return same wrapped value twice
       )

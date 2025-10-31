@@ -10,7 +10,7 @@ import scala.annotation.implicitNotFound
  * Use Dynamic to proxy field/method access.
  * Not ideal because not type safe, but unlike Selectable works with any input type and applyDynamic is called.
  */
-object RestrictedDynamic extends LinearFnBase:
+object RestrictedDynamic extends RestrictedFnBase:
 
   // Implementation-specific Restricted trait - extends RestrictedBase
   trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Dynamic:
@@ -35,13 +35,13 @@ object RestrictedDynamic extends LinearFnBase:
 
     def execute(): A
 
-  // Implementation-specific LinearRef
+  // Implementation-specific RestrictedRef
   object Restricted:
-    case class LinearRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
+    case class RestrictedRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
       def execute(): A = fn()
 
       override def stageField(name: String): Restricted[A, D, C] =
-        LinearRef(() =>
+        RestrictedRef(() =>
           println(s"inside fn: staged field access $name")
           // should be equivalent to fn().name
           ???
@@ -49,13 +49,13 @@ object RestrictedDynamic extends LinearFnBase:
 
       override def stageCall[D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[A, D2, C2] = {
         println(s"staging call $name with args: $args")
-        LinearRef[A, D2, C2](() =>
+        RestrictedRef[A, D2, C2](() =>
           println(s"inside fn: staged call $name with args: $args")
           // should be equivalent to fn().name(args)
           ???
         )
       }
 
-  // Implement abstract methods from LinearFnBase
-  protected def makeLinearRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
-    Restricted.LinearRef(fn)
+  // Implement abstract methods from RestrictedFnBase
+  protected def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
+    Restricted.RestrictedRef(fn)

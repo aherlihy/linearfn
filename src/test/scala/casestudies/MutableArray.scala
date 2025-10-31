@@ -2,7 +2,7 @@ package test
 
 import linearfn.{ops, consumed, unconsumed, repeatable}
 import munit.FunSuite
-import linearfn.RestrictedSelectable.LinearFn
+import linearfn.RestrictedSelectable.RestrictedFn
 
 import scala.reflect.ClassTag
 

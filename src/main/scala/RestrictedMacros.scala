@@ -35,8 +35,8 @@ object RestrictedMacros:
           case '[fieldType] =>
             // Generate code that creates a new Restricted wrapping the field access
             '{
-              val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D, C]]
-              Restricted.LinearRef[fieldType, D, C](() => {
+              val linearRef = $self.asInstanceOf[Restricted.RestrictedRef[A, D, C]]
+              Restricted.RestrictedRef[fieldType, D, C](() => {
                 val result = linearRef.fn()
                 // Use reflection to call the accessor method
                 val method = result.getClass.getMethod($name)
@@ -104,8 +104,8 @@ object RestrictedMacros:
         returnType.asType match
           case '[rt] =>
             '{
-              Restricted.LinearRef[rt, newD & Tuple, EmptyTuple](() => {
-                val linearRef = $self.asInstanceOf[Restricted.LinearRef[A, D, C]]
+              Restricted.RestrictedRef[rt, newD & Tuple, EmptyTuple](() => {
+                val linearRef = $self.asInstanceOf[Restricted.RestrictedRef[A, D, C]]
                 val result = linearRef.fn()
                 val argSeq = $args
 

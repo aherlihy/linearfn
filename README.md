@@ -10,28 +10,35 @@ Example case studies are located in `test/casestudies`.
 
 ## Substructural Constraints 
 
-This library provides a `restrictedFn` library function that enforces the substructural constraints specified by the user.
+This library provides a `restrictedReturn` library function that enforces the substructural constraints specified by the user.
 
 1. **Traditional substructural types**: 
-    Users pass the desired multiplicity (linear, affine, relevant) to `restrictedFn` and declare the types of the 
-    function parameters using the `@ops` annotation. The library enforces the specified constraints at compile time.
+    Users pass the desired multiplicity (linear, affine, relevant) to `restrictedReturn` and declare the types of the 
+    function parameters using the `@ops` annotation. The library enforces the specified constraints at compile time
+    within the region of the function body.
     The definition of "use" is also customizable by the user on a per-method basis: the default behavior of methods of 
     types declared with `@ops` is equivalent to the `@consumed` annotation, indicating that a method consumes or "uses"
     the receiver.
-    Within the scope of a `restrictedFn`, a `@consumed` method may be called according to the constraint level specified by the user.
+    Within the scope of a `restrictedReturn`, a `@consumed` method may be called according to the multiplicity level specified by the user.
     This is the classical understanding of "use" of a value within a region (the function body),
     useful for resource management (file handles must be closed exactly once, transactions must be committed or rolled 
     back exactly once, etc.). Users can also customize methods as `@repeatable` (receiver must be unconsumed, but does 
-    not consume the receiver, for example `isClosed`); or `@unconsumed` (receiver can be unconsumed or consumed, does 
+    not consume the receiver, for example `read` on a socket); or `@unconsumed` (receiver can be unconsumed or consumed, does 
     not change consumption state, useful for debugging or helper methods). 
 
-2. **Multi-argument, multi-return-value functions**: For functions with _n_ arguments and _m_ return values,
-    each argument flows through the function to the return values. Users can specify constraints for _each_ return-value, 
-    allowing for more flexible constraints that are not possible with traditional substructural type systems, or
-    for _all_ return values. For example, a user may want to enforce that each argument is used at least once across all return values (affine),
-    but at most once in each individual return value (relevant). Parameters of methods of argument types can be declared as 
-    `@restricted` (default behavior), `@unrestricted`, or `@restrictedFn` (for function parameters, only track return type,
+2. **Custom products**: 
+    Users can customize the "combination" or product operation of restricted types. 
+    Traditionally, methods of restricted types that are passed other 
+    restricted types are seen as strict products, e.g., for restricted types `a`, `b`, `a + b` would be the product of `a` and `b`.
+    However, in some DSLs, users may want to define custom combination operations, e.g., for merging database queries or combining file handles.
+    Parameters of methods of argument types can be declared as 
+    `@restricted` (default behavior), `@unrestricted` (do not restrict parameter), or `@restrictedReturn` (for function parameters, only track return type,
     useful for higher-order-functions).
+   For functions with _n_ arguments and _m_ return values,
+   each argument flows through the function to the return values. Users can specify constraints for _each_ return-value,
+   allowing for more flexible constraints that are not possible with traditional substructural type systems, or
+   for _all_ return values. For example, a user may want to enforce that each argument is used at least once across all return values (affine),
+   but at most once in each individual return value (relevant).
 
 ### Relationship to Substructural Type Systems
 
@@ -53,7 +60,7 @@ This library provides a `restrictedFn` library function that enforces the substr
    - For-all-return-values constraints
    - `@restricted` parameters (default) track full parameter
    - `@unrestricted` parameters do not track parameter
-   - `@restrictedFn` parameters track return type only (for higher-order functions)
+   - `@restrictedReturn` parameters track return type only (for higher-order functions)
      
     | Combination | What It Allows                                                      | Example Valid______________                                  | Example Invalid                                                                    | Use Case                                                                                                                  |
      |-------------|---------------------------------------------------------------------|--------------------------------------------------------------|------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
@@ -286,7 +293,7 @@ The `@ops` generator supports annotations to customize how methods and their par
 | _(none)_ | Parameters | Full tracking                                                             | Default - track parameter and its dependencies                                                             |
 | _(none)_ | Methods | Consumes receiver                                                         | Default - terminal operations that consume the receiver                                                    |
 | `@unrestricted` | Parameters | No tracking                                                               | Pure values, config, predicates that don't need tracking                                                   |
-| `@restrictedFn` | Function parameters | Track return type only                                                    | Higher-order functions - track what function returns, not function itself                                  |
+| `@restrictedReturn` | Function parameters | Track return type only                                                    | Higher-order functions - track what function returns, not function itself                                  |
 | `@repeatable` | Methods | Can only be called on unconsumed values but can be called multiple times. | Operations that can be chained: `write()`, `map()`, `flatMap()`                                            |
 | `@consumed` | Methods | Explicit version of default - consumes receiver.                          | Terminal operations like `close()`, `freeze()` (same as no annotation)                                     |
 | `@unconsumed` | Methods | Method works on any consumption state and does not modify reciever.       | Relax constraints for this particular call, good for debugging or helper methods that do not modify state. |
@@ -312,14 +319,14 @@ The `@ops` generator supports annotations to customize how methods and their par
    - Can be used multiple times
    - Are pure values or configuration
 
-3. **`@restrictedFn`** - Track function return type only:
+3. **`@restrictedReturn`** - Track function return type only:
    ```scala
-   def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+   def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
    // Generates: f: A => Restricted[Query[B], D1, C1]
    // Dependencies: only the returned Query[B] is tracked
    ```
 
-   Use `@restrictedFn` for higher-order functions where:
+   Use `@restrictedReturn` for higher-order functions where:
    - The function itself is a callback/transformer
    - You want to track what the function returns, not the function object
    - Common in DSLs with `map`/`flatMap`/`filter` operations
@@ -452,8 +459,8 @@ case class Query[A](data: List[A]):
   def transform(f: A => Query[A]): Query[A] =
     Query(data.flatMap(a => f(a).data))
 
-  // @restrictedFn: only tracks the Query[B] returned by f
-  def flatMap[B](@restrictedFn f: A => Query[B]): Query[B] =
+  // @restrictedReturn: only tracks the Query[B] returned by f
+  def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B] =
     Query(data.flatMap(a => f(a).data))
 
   // @unrestricted: doesn't track the function at all
@@ -476,21 +483,21 @@ val result = LinearFn.apply((q1, q2))(refs =>
 )
 ```
 
-**`@restrictedFn` Restrictions:**
+**`@restrictedReturn` Restrictions:**
 
-The `@restrictedFn` annotation can ONLY be used on single-parameter function types (`A => B`):
+The `@restrictedReturn` annotation can ONLY be used on single-parameter function types (`A => B`):
 
 ```scala
 // ✓ VALID: Single-parameter function
-def flatMap[B](@restrictedFn f: A => Query[B]): Query[B]
+def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
 
 // ✗ INVALID: Multi-parameter function
-def combine(@restrictedFn f: (A, B) => C): C
-// Error: "@restrictedFn can only be used on single-parameter functions"
+def combine(@restrictedReturn f: (A, B) => C): C
+// Error: "@restrictedReturn can only be used on single-parameter functions"
 
 // ✗ INVALID: Non-function parameter
-def process(@restrictedFn config: String): Result
-// Error: "@restrictedFn can only be used on function parameters"
+def process(@restrictedReturn config: String): Result
+// Error: "@restrictedReturn can only be used on function parameters"
 ```
 
 These errors are caught during sbt source generation and reported as build warnings.

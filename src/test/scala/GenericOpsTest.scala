@@ -28,7 +28,7 @@ class GenericOpsTest extends FunSuite:
   test("generic Box[String] - get and set work") {
     val box = Box[String]("hello")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(box))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(box))(refs =>
       val updated = refs._1.set("world")
       val value = updated.get()
       Tuple1(value)
@@ -40,7 +40,7 @@ class GenericOpsTest extends FunSuite:
   test("generic Box[Int] - works with primitives after boxing fix") {
     val box = Box[Int](42)
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(box))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(box))(refs =>
       val updated = refs._1.set(100)
       val value = updated.get()
       Tuple1(value)
@@ -54,7 +54,7 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - write with primitives works after boxing fix") {
     val arr = MArray[Int](new Array[Int](3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, 10)
       val after2 = after1.write(1, 20)
       val after3 = after2.write(2, 30)
@@ -68,7 +68,7 @@ class GenericOpsTest extends FunSuite:
   test("MArray[String] - works with reference types") {
     val arr = MArray[String](new Array[String](2))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, "hello")
       val after2 = after1.write(1, "world")
       val frozen = after2.freeze()
@@ -81,7 +81,7 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - read returns tuple with primitives") {
     val arr = MArray[Int](Array(100, 200, 300))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val readResult = refs._1.read(1)
       Tuple1(readResult)
     )
@@ -94,7 +94,7 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - chaining writes with primitives") {
     val arr = MArray[Int](new Array[Int](3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val final_arr = refs._1
         .write(0, 1)
         .write(1, 2)
@@ -110,7 +110,7 @@ class GenericOpsTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, ex1)
       val after2 = after1.write(1, ex2)
       Tuple1(after2.freeze())
@@ -129,7 +129,7 @@ class GenericOpsTest extends FunSuite:
       import BoxOps.*
 
       val box = Box[String]("test")
-      RestrictedSelectable.LinearFn.strictApply(Tuple1(box))(refs =>
+      RestrictedSelectable.RestrictedFn.strictApply(Tuple1(box))(refs =>
         val v1 = refs._1.get()
         val v2 = refs._1.get()  // Error: returning 2 values from 1 input with strictApply
         (v1, v2)
@@ -150,7 +150,7 @@ class GenericOpsTest extends FunSuite:
       import MArrayOps.*
 
       val arr = MArray[Int](new Array[Int](3))
-      RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
         val after = refs._1.write(0, "not an int")  // Error: String is not Int
         Tuple1(after.freeze())
       )
@@ -168,7 +168,7 @@ class GenericOpsTest extends FunSuite:
       import BoxOps.*
 
       val box = Box[String]("hello")
-      RestrictedSelectable.LinearFn.apply(Tuple1(box))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(box))(refs =>
         val updated = refs._1.set(42)  // Error: Int is not String
         Tuple1(updated.get())
       )
@@ -189,7 +189,7 @@ class GenericOpsTest extends FunSuite:
       val stringArr = MArray[String](new Array[String](3))
 
       // Try to use intArr where stringArr is expected
-      RestrictedSelectable.LinearFn.apply(Tuple1(intArr))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(intArr))(refs =>
         val after = refs._1.write(0, "string")  // Error: can't write String to MArray[Int]
         Tuple1(after.freeze())
       )

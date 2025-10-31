@@ -13,7 +13,7 @@ class UnconsumedAnnotationTest extends FunSuite:
 
     val arr = MArray[Int](Array(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val sz = refs._1.size()
       Tuple1(refs._1)  // Return the array, size() didn't consume it
     )
@@ -27,7 +27,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     val arr = MArray[Int](Array(1, 2, 3))
 
     // Key test: seal() then size()
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val consumed = refs._1.seal()  // Consumes the array, returns MArray
       val sz = consumed.size()       // size() works on consumed value!
       Tuple1(consumed)
@@ -41,7 +41,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     val arr = MArray[Int](Array(1, 2, 3))
 
     // Test: nothing().seal().nothing()
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val arr1 = refs._1.nothing()   // @unconsumed on unconsumed
       val consumed = arr1.seal()     // @consumed on unconsumed
       val arr2 = consumed.nothing()  // @unconsumed on consumed!
@@ -56,7 +56,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     val arr = MArray[Int](Array(1, 2, 3))
 
     // Chain multiple nothing() calls before and after seal
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val arr1 = refs._1.nothing().nothing().nothing()
       val consumed = arr1.seal()
       val arr2 = consumed.nothing().nothing()
@@ -74,7 +74,7 @@ class UnconsumedAnnotationTest extends FunSuite:
 
       val arr = MArray[Int](Array(1, 2, 3))
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
         val frozen = refs._1.freeze()     // Consumes
         val updated = frozen.write(0, 10) // Error: write requires unconsumed
         Tuple1(updated)
@@ -94,7 +94,7 @@ class UnconsumedAnnotationTest extends FunSuite:
 
       val arr = MArray[Int](Array(1, 2, 3))
 
-      RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+      RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
         val frozen = refs._1.freeze()     // Consumes: C = Tuple1[true]
         val arr1 = frozen.nothing()       // Preserves: C = Tuple1[true]
         val frozen2 = arr1.freeze()       // Error: freeze requires C = EmptyTuple
@@ -113,7 +113,7 @@ class UnconsumedAnnotationTest extends FunSuite:
 
     val arr = MArray[Int](Array(1, 2, 3))
 
-    val result = RestrictedSelectable.LinearFn.apply(Tuple1(arr))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply(Tuple1(arr))(refs =>
       val arr1 = refs._1.nothing()       // @unconsumed on unconsumed
       val arr2 = arr1.write(0, 10)       // default on unconsumed
       val arr3 = arr2.nothing()          // @unconsumed on unconsumed
@@ -132,7 +132,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     val arr2 = MArray[Int](Array(3, 4))
 
     // Both receiver and argument are unconsumed
-    val result = RestrictedSelectable.LinearFn.apply((arr1, arr2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((arr1, arr2))(refs =>
       val combined = refs._1.combine(refs._2)
       (combined, combined)  // Return combined twice to match 2 args → 2 returns
     )
@@ -150,7 +150,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     // Receiver is unconsumed, argument is consumed
     // NOTE: Currently arguments ignore consumption state - this is accepted
     // Future work: Could require @unconsumed or @consumed on parameters
-    val result = RestrictedSelectable.LinearFn.apply((arr1, arr2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((arr1, arr2))(refs =>
       val arr2Consumed = refs._2.seal()    // Consume argument
       val combined = refs._1.combine(arr2Consumed)  // Combine accepts consumed arg
       (combined, combined)
@@ -168,7 +168,7 @@ class UnconsumedAnnotationTest extends FunSuite:
 
     // Receiver is consumed, argument is unconsumed
     // combine() is @unconsumed so it can be called on consumed receiver
-    val result = RestrictedSelectable.LinearFn.apply((arr1, arr2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((arr1, arr2))(refs =>
       val arr1Consumed = refs._1.seal()    // Consume receiver
       val combined = arr1Consumed.combine(refs._2)  // @unconsumed combine works on consumed!
       (combined, combined)
@@ -187,7 +187,7 @@ class UnconsumedAnnotationTest extends FunSuite:
     // Both receiver and argument are consumed
     // combine() is @unconsumed so it accepts consumed receiver
     // Arguments currently ignore consumption state, so consumed arg also works
-    val result = RestrictedSelectable.LinearFn.apply((arr1, arr2))(refs =>
+    val result = RestrictedSelectable.RestrictedFn.apply((arr1, arr2))(refs =>
       val arr1Consumed = refs._1.seal()
       val arr2Consumed = refs._2.seal()
       val combined = arr1Consumed.combine(arr2Consumed)  // Both consumed!
@@ -212,7 +212,7 @@ class UnconsumedAnnotationTest extends FunSuite:
       val arr1 = MArray[Int](Array(1, 2))
       val arr2 = MArray[Int](Array(3, 4))
 
-      RestrictedSelectable.LinearFn.apply((arr1, arr2))(refs =>
+      RestrictedSelectable.RestrictedFn.apply((arr1, arr2))(refs =>
         val combined = refs._1.combine(refs._1)
         (combined, refs._2)  // Error: refs._2 used in both
       )

@@ -1,7 +1,7 @@
 package linearfn
 
 import linearfn.ops
-import linearfn.RestrictedSelectable.{LinearFn, Restricted}
+import linearfn.RestrictedSelectable.{RestrictedFn, Restricted}
 import scala.Tuple.*
 
 // === Library-facing model (what users write) ===
@@ -29,7 +29,7 @@ import scala.Tuple.*
 //def array[A](size: Int, pairs: List[(Int, A)]): Array[A] =
 //  MArray.newMArray[A](size) { ma0 =>
 //    // foldl write ma pairs  |>  linear: the MArray is used exactly once through the fold
-//    val frozen = LinearFn.apply(Tuple1(ma0)) { refs =>
+//    val frozen = RestrictedFn.apply(Tuple1(ma0)) { refs =>
 //      val afterWrites =
 //        pairs.foldLeft(refs._1) { (m, p) =>
 //          // implicit lift: Int, A are treated as Restricted[..., EmptyTuple]
@@ -42,8 +42,8 @@ import scala.Tuple.*
 //
 // ✓ OK: each MArray handle is threaded linearly
 
-// ✗ Not OK (won’t compile): would reuse the same handle twice
-// LinearFn.apply(Tuple1(MArray(new Array)))(refs => (refs._1.write(0, 1), refs._1.freeze()))
+// ✗ Not OK (won't compile): would reuse the same handle twice
+// RestrictedFn.apply(Tuple1(MArray(new Array)))(refs => (refs._1.write(0, 1), refs._1.freeze()))
 
 @main def main() = {
   println("Linear Function Library")
