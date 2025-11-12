@@ -317,3 +317,49 @@ class RecursiveQueryTest extends FunSuite:
       """)
       assert(obtained.contains(TestUtils.substructuralConstraintFailed), s"obtained: $obtained")
     }
+
+// ADDITIONAL CONSTRAINT TESTS
+
+  test("CustomFix: Wrong number of arguments (more returns than args)") {
+    val obtained = compileErrors(
+      """
+      val q1 = Query[Int]()
+      val q2 = Query[Int]()
+      Query.customFix(q1, q2)((a1, a2) =>
+        (a1, a2, a1)  // 3 returns but only 2 arguments
+      )
+    """)
+    assert(obtained.contains("customFix requires same number of args and returns"), s"obtained: $obtained")
+  }
+
+  test("CustomFix: Wrong number of arguments (fewer returns than args)") {
+    // When tuple sizes don't match, the base linearity constraints fail first
+    // because the type alignment is incorrect
+    val obtained = compileErrors(
+      """
+      val q1 = Query[Int]()
+      val q2 = Query[Int]()
+      val q3 = Query[Int]()
+      Query.customFix(q1, q2, q3)((a1, a2, a3) =>
+        (a1, a2)  // 2 returns but 3 arguments
+      )
+    """)
+    // The base constraints fail before we get to the tuple size check
+    assert(obtained.contains("Substructural constraint not satisfied"), s"obtained: $obtained")
+  }
+
+  test("CustomFix: Non-Query type argument fails base constraints") {
+    // When a non-Query type is passed, the base linearity constraints fail
+    // because the argument type doesn't match Query[?]
+    val obtained = compileErrors(
+      """
+      val q1 = Query[Int]()
+      val nonQuery = 42
+      Query.customFix(q1, nonQuery)((a1, a2) =>
+        (a1, a1)
+      )
+    """)
+    // The error comes from the substructural constraint check, not the Query type check
+    // This is because type inference tries to work with (Query[Int], Int)
+    assert(obtained.contains("Substructural constraint not satisfied"), s"obtained: $obtained")
+  }
