@@ -501,3 +501,37 @@ abstract class RestrictedFnBase:
         @implicitNotFound(ErrorMsg.strictFnFailed)
         evStrict: CheckStrictConstraint[true, AT, RT]
     ): RT = applyImpl[AT, RT, RQT](args)(fns)
+
+    /**
+     * LinearFnBuilder: Encodes base linearity constraints.
+     *
+     * User code requests a builder via `using`, and the given instance
+     * will be found IFF all base linearity constraints are satisfied.
+     */
+    @implicitNotFound(ErrorMsg.substructuralContstraintFailed)
+    trait LinearFnBuilder[VC <: VerticalConstraint, HC <: HorizontalConstraint, AT <: Tuple, RQT <: Tuple, RT <: Tuple]:
+      def execute(args: AT)(fns: ToRestrictedRef[AT] => RQT): RT
+
+    object LinearFnBuilder:
+      given builder[
+        VC <: VerticalConstraint, HC <: HorizontalConstraint,
+        AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple
+      ](using
+        // ALL base linearity constraints defined in the library
+        @implicitNotFound(ErrorMsg.invalidResultTypes)
+        ev1: RT =:= ExtractResultTypes[RQT],
+        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
+        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+        evV: CheckVerticalConstraint[VC, CT] =:= true,
+        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
+        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
+      ): LinearFnBuilder[VC, HC, AT, RQT, RT] with
+        def execute(args: AT)(fns: ToRestrictedRef[AT] => RQT): RT =
+          applyImpl[AT, RT, RQT](args)(fns)

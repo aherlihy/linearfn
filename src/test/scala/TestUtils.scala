@@ -3,6 +3,7 @@ package test
 import linearfn.ErrorMsg
 
 object TestUtils:
+  val substructuralConstraintFailed = ErrorMsg.substructuralContstraintFailed.split(":", 2).head
   val typeErrorStr = "Expected"
   val verticalConstraintFailed = ErrorMsg.verticalConstraintFailed.split(":", 2).head
   val horizontalRelevanceFailed = ErrorMsg.horizontalRelevanceFailed.split(":", 2).head

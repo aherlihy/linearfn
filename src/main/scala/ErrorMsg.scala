@@ -1,6 +1,7 @@
 package linearfn
 
 object ErrorMsg:
+  inline val substructuralContstraintFailed = "Substructural constraint not satisfied: ${VC}, ${HC}"
   inline val invalidResultTypes = "Cannot extract result types from function return type"
   inline val invalidDependencyTypes = "Cannot extract dependency types from function return type"
   inline val invalidConsumptionTypes = "Cannot extract consumption types from function return type"

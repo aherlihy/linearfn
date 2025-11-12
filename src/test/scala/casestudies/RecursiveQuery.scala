@@ -1,8 +1,9 @@
 package test.casestudies
 
-import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restricted, restrictedReturn, repeatable}
+import linearfn.{RestrictedSelectable, consumed, ops, unrestricted, restricted, restrictedReturn, repeatable, VerticalConstraint, HorizontalConstraint, ErrorMsg}
 
 import scala.NamedTuple.AnyNamedTuple
+import scala.annotation.implicitNotFound
 
 /**
  * Case Study: LINQ-style Recursive queries
@@ -65,6 +66,35 @@ object Query:
   case class Union[A]($left: Query[A], $right: Query[A]) extends Query[A]
   case class RecursiveQuery[Q <: Tuple](queries: Q) extends Query[Any]
   export RestrictedSelectable.RestrictedFn.strictApply as fix
+
+  /**
+   * customFix: Accepts a lambda with constraints from the library.
+   *
+   * Base linearity constraints are imported from the library via the builder type.
+   * The library's LinearFnBuilder type can only be constructed when base constraints
+   * are satisfied, so requesting it via `using` enforces those constraints.
+   *
+   * We add ONLY 2 additional constraints here:
+   * - Tuple.Size[QT] =:= Tuple.Size[RQ] (strictness)
+   * - Tuple.Union[QT] <:< Query[?] (domain-specific)
+   */
+  def customFix[QT <: Tuple, RQ <: Tuple, RQT <: Tuple](
+    bases: QT
+  )(fns: RestrictedSelectable.ToRestrictedRef[QT] => RQT)(
+    using
+      // Request the library's builder - this enforces ALL base linearity constraints
+      builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
+        VerticalConstraint.Affine.type,
+        HorizontalConstraint.ForAllRelevantForEachAffine.type,
+        QT, RQT, RQ
+      ],
+      // ONLY additional constraints - NO base linearity constraints
+      @implicitNotFound("customFix requires same number of args and returns")
+      evStrict: Tuple.Size[QT] =:= Tuple.Size[RQ],
+      @implicitNotFound("customFix requires all arguments to be Query types")
+      evQuery: Tuple.Union[QT] <:< Query[?]
+  ): RQ =
+    builder.execute(bases)(fns)
 
 //object QueryOps:
 //  extension [A, D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Query[A], D, EmptyTuple])
