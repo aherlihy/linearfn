@@ -165,6 +165,38 @@ class RecursiveQueryTest extends FunSuite:
     assert(obtained.contains(TestUtils.horizontalAffineFailed), s"obtained: $obtained")
   }
 
+// SIMPLEFIX (Ergonomic API)
+
+  test("SimpleFix: Linear recursive query") {
+    val q1 = Query[Int]()
+    val q2 = Query[Int]()
+    Query.simpleFix(q1, q2)((a1, a2) => (a1, a2))
+  }
+
+  test("SimpleFix: Non-linear recursive query") {
+    val obtained = compileErrors(
+      """
+      val q1 = Query[Int]()
+      val q2 = Query[Int]()
+      Query.simpleFix(q1, q2)((a1, a2) =>
+        (a1, a1)
+      )
+    """)
+    assert(obtained.contains(TestUtils.substructuralConstraintFailed), s"obtained: $obtained")
+  }
+
+  test("SimpleFix: Wrong number of arguments") {
+    val obtained = compileErrors(
+      """
+      val q1 = Query[Int]()
+      val q2 = Query[Int]()
+      Query.simpleFix(q1, q2)((a1, a2) =>
+        (a1, a2, a1)
+      )
+    """)
+    assert(obtained.contains("simpleFix requires same number of args and returns"), s"obtained: $obtained")
+  }
+
 // CUSTOMFIX
 
 
@@ -363,3 +395,4 @@ class RecursiveQueryTest extends FunSuite:
     // This is because type inference tries to work with (Query[Int], Int)
     assert(obtained.contains("Substructural constraint not satisfied"), s"obtained: $obtained")
   }
+

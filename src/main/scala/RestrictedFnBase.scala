@@ -503,35 +503,47 @@ abstract class RestrictedFnBase:
     ): RT = applyImpl[AT, RT, RQT](args)(fns)
 
     /**
+     * LinearFn: A type alias for linear functions.
+     *
+     * This is the library's contribution - a clean name for linear functions
+     * that take restricted references and return restricted values.
+     */
+    type LinearFn[AT <: Tuple, RQT <: Tuple] = ToRestrictedRef[AT] => RQT
+
+    /**
      * LinearFnBuilder: Encodes base linearity constraints.
      *
      * User code requests a builder via `using`, and the given instance
      * will be found IFF all base linearity constraints are satisfied.
+     *
+     * The builder returns RQT (the restricted tuple) - user code decides
+     * what to do with it (unwrap it, use it directly, etc).
      */
     @implicitNotFound(ErrorMsg.substructuralContstraintFailed)
-    trait LinearFnBuilder[VC <: VerticalConstraint, HC <: HorizontalConstraint, AT <: Tuple, RQT <: Tuple, RT <: Tuple]:
-      def execute(args: AT)(fns: ToRestrictedRef[AT] => RQT): RT
+    trait LinearFnBuilder[VC <: VerticalConstraint, HC <: HorizontalConstraint, AT <: Tuple, RQT <: Tuple]:
+      def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT
 
     object LinearFnBuilder:
       given builder[
         VC <: VerticalConstraint, HC <: HorizontalConstraint,
-        AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple
+        AT <: Tuple, DT <: Tuple, CT <: Tuple, RQT <: Tuple
       ](using
         // ALL base linearity constraints defined in the library
         @implicitNotFound(ErrorMsg.invalidResultTypes)
-        ev1: RT =:= ExtractResultTypes[RQT],
+        ev1: ExtractResultTypes[RQT] =:= ExtractResultTypes[RQT],
         @implicitNotFound(ErrorMsg.invalidDependencyTypes)
         ev1b: DT =:= ExtractDependencyTypes[RQT],
         @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
         ev1c: CT =:= ExtractConsumedTypes[RQT],
         @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
-        ev3: RQT =:= ToRestricted[RT, DT, CT],
+        ev3: RQT =:= ToRestricted[ExtractResultTypes[RQT], DT, CT],
         @implicitNotFound(ErrorMsg.verticalConstraintFailed)
         evV: CheckVerticalConstraint[VC, CT] =:= true,
         @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
+        evHR: CheckHorizontalRelevant[HC, AT, ExtractResultTypes[RQT], RQT],
         @implicitNotFound(ErrorMsg.horizontalAffineFailed)
         evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
-      ): LinearFnBuilder[VC, HC, AT, RQT, RT] with
-        def execute(args: AT)(fns: ToRestrictedRef[AT] => RQT): RT =
-          applyImpl[AT, RT, RQT](args)(fns)
+      ): LinearFnBuilder[VC, HC, AT, RQT] with
+        def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT =
+          applyImpl[AT, ExtractResultTypes[RQT], RQT](args)(fns).asInstanceOf[RQT]
+

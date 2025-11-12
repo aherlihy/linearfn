@@ -68,33 +68,61 @@ object Query:
   export RestrictedSelectable.RestrictedFn.strictApply as fix
 
   /**
-   * customFix: Accepts a lambda with constraints from the library.
+   * simpleFix: Most ergonomic API!
+   *
+   * Only TWO type parameters: QT (arguments) and RQT (returns).
+   * Uses the library's LinearFn type alias.
+   *
+   * Example: Query.simpleFix(q1, q2)((a1, a2) => (a1, a2))
+   */
+  def simpleFix[QT <: Tuple, RQT <: Tuple](
+    bases: QT
+  )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, RQT])(
+    using
+      // Base linearity constraints - enforced by requesting the builder
+      builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
+        VerticalConstraint.Affine.type,
+        HorizontalConstraint.ForAllRelevantForEachAffine.type,
+        QT, RQT
+      ],
+      // Additional domain-specific constraints
+      @implicitNotFound("simpleFix requires same number of args and returns")
+      evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
+      @implicitNotFound("simpleFix requires all arguments to be Query types")
+      evQuery: Tuple.Union[QT] <:< Query[?]
+  ): RQT =
+    // User code decides how to handle the result - in this case, cast to QT
+    builder.execute(bases)(fns)
+
+  /**
+   * customFix: Educational version showing how the library works.
    *
    * Base linearity constraints are imported from the library via the builder type.
    * The library's LinearFnBuilder type can only be constructed when base constraints
    * are satisfied, so requesting it via `using` enforces those constraints.
    *
    * We add ONLY 2 additional constraints here:
-   * - Tuple.Size[QT] =:= Tuple.Size[RQ] (strictness)
+   * - Tuple.Size[QT] =:= Tuple.Size[RQT] (strictness)
    * - Tuple.Union[QT] <:< Query[?] (domain-specific)
    */
-  def customFix[QT <: Tuple, RQ <: Tuple, RQT <: Tuple](
+  def customFix[QT <: Tuple, RQT <: Tuple](
     bases: QT
-  )(fns: RestrictedSelectable.ToRestrictedRef[QT] => RQT)(
+  )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, RQT])(
     using
       // Request the library's builder - this enforces ALL base linearity constraints
       builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
         VerticalConstraint.Affine.type,
         HorizontalConstraint.ForAllRelevantForEachAffine.type,
-        QT, RQT, RQ
+        QT, RQT
       ],
       // ONLY additional constraints - NO base linearity constraints
       @implicitNotFound("customFix requires same number of args and returns")
-      evStrict: Tuple.Size[QT] =:= Tuple.Size[RQ],
+      evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
       @implicitNotFound("customFix requires all arguments to be Query types")
       evQuery: Tuple.Union[QT] <:< Query[?]
-  ): RQ =
-    builder.execute(bases)(fns)
+  ): QT =
+    builder.execute(bases)(fns).asInstanceOf[QT]
+
 
 //object QueryOps:
 //  extension [A, D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Query[A], D, EmptyTuple])
