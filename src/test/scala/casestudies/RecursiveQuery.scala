@@ -120,8 +120,8 @@ object Query:
       evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
       @implicitNotFound("customFix requires all arguments to be Query types")
       evQuery: Tuple.Union[QT] <:< Query[?]
-  ): QT =
-    builder.execute(bases)(fns).asInstanceOf[QT]
+  ): RQT =
+    builder.execute(bases)(fns)
 
 
 //object QueryOps:
