@@ -434,6 +434,57 @@ abstract class RestrictedFnBase:
     ): RT = applyImpl[AT, RT, RQT](args)(fns)
 
     /**
+     * customLinearFn - Like customApply but with reversed argument order for currying.
+     *
+     * Takes the function first, then the arguments. This allows partial application
+     * with just the function, creating a curried linear function that can be passed around.
+     *
+     * Usage:
+     * {{{
+     * val f = RestrictedFn.customLinearFn(
+     *   (vertical = VerticalConstraint.Affine,
+     *    horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
+     * )(refs => (refs._1, refs._2))
+     *
+     * // f is now a function that takes arguments and returns results
+     * val result = f((a, b))
+     * }}}
+     */
+    def customLinearFn[
+      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
+      VC <: VerticalConstraint,
+      HC <: HorizontalConstraint
+    ](
+      options: (vertical: VC, horizontal: HC)
+    )(fns: ToRestrictedRef[AT] => RQT)(
+      using
+        // Basic type extraction evidences
+        @implicitNotFound(ErrorMsg.invalidResultTypes)
+        ev1: RT =:= ExtractResultTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+
+        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
+
+        // Vertical constraint evidence
+        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+        evV: CheckVerticalConstraint[VC, CT] =:= true,
+
+        // Horizontal constraint evidences (two separate checks)
+        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
+
+        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
+    ): AT => RT =
+      (args: AT) => applyImpl[AT, RT, RQT](args)(fns)
+
+    /**
      * apply - Convenience method for the default linear function behavior.
      *
      * VERTICAL (Consumption): AFFINE - allows unconsumed values (at most once consumed)
