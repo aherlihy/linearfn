@@ -7,11 +7,11 @@ import test.TestUtils
 
 class RecursiveQueryTest extends FunSuite:
 
-  import QueryOps.*
+  import RQQueryOps.*
 
   test("Construct normal query") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
     for
       a1 <- q1
       a2 <- q2
@@ -19,16 +19,17 @@ class RecursiveQueryTest extends FunSuite:
   }
 
   test("Linear recursive query") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    val r = RQQuery.fix(q1, q2)((a1, a2) =>
       (a1, a2)
     )
+    println(r)
   }
   test("Linear recursive query with outside ref map/flatMap/filter") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.fix(q1, q2)((a1, a2) =>
       val r1 = for
         e1 <- a1
         e2 <- q2 // non-recursive reference
@@ -44,9 +45,9 @@ class RecursiveQueryTest extends FunSuite:
   }
 
   test("Linear recursive query with flatMap using comprehension") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.fix(q1, q2)((a1, a2) =>
       val r1 = for
         e1 <- a1
         e2 <- a2
@@ -62,9 +63,9 @@ class RecursiveQueryTest extends FunSuite:
   }
 
   test("Linear recursive query with flatMap using flatMap") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.fix(q1, q2)((a1, a2) =>
       val r1 = a1.flatMap(e1 =>
         a2.map(e2 =>
           e1 + e2
@@ -81,26 +82,26 @@ class RecursiveQueryTest extends FunSuite:
 
 
   test("Linear recursive query with outside ref union") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.fix(q1, q2)((a1, a2) =>
       (a1.union(q1), a2)
     )
   }
 
   test("Linear recursive query with outside ref unionAll") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.fix(q1, q2)((a1, a2) =>
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.fix(q1, q2)((a1, a2) =>
       (a1.unionAll(q1), a2)
     )
   }
 
   test("Non-linear recursive query") {
     val obtained = compileErrors("""
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.fix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.fix(q1, q2)((a1, a2) =>
         (a1, a1)
       )
     """)
@@ -109,9 +110,9 @@ class RecursiveQueryTest extends FunSuite:
 
   test("Non-affine recursive query") {
     val obtained = compileErrors("""
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.fix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.fix(q1, q2)((a1, a2) =>
         (a1.union(a1), a2)
       )
     """)
@@ -120,9 +121,9 @@ class RecursiveQueryTest extends FunSuite:
 
   test("Non-affine recursive query with unionAll") {
     val obtained = compileErrors("""
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.fix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.fix(q1, q2)((a1, a2) =>
         (a1.unionAll(a1), a2)
       )
     """)
@@ -131,9 +132,9 @@ class RecursiveQueryTest extends FunSuite:
 
   test("Non-Linear recursive query with map/flatMap/filter") {
     val obtained = compileErrors("""
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.fix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.fix(q1, q2)((a1, a2) =>
         val r1 = for
           e1 <- a1
           e2 <- q2 // non-recursive reference
@@ -146,9 +147,9 @@ class RecursiveQueryTest extends FunSuite:
 
   test("Non-affine recursive query with map/flatMap/filter") {
     val obtained = compileErrors("""
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.fix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.fix(q1, q2)((a1, a2) =>
         val r1 = for
           e1 <- a1
           e2 <- a1
@@ -168,17 +169,17 @@ class RecursiveQueryTest extends FunSuite:
 // SIMPLEFIX (Ergonomic API)
 
   test("SimpleFix: Linear recursive query") {
-    val q1 = Query[Int]()
-    val q2 = Query[Int]()
-    Query.simpleFix(q1, q2)((a1, a2) => (a1, a2))
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]()
+    RQQuery.simpleFix(q1, q2)((a1, a2) => (a1, a2))
   }
 
   test("SimpleFix: Non-linear recursive query") {
     val obtained = compileErrors(
       """
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.simpleFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.simpleFix(q1, q2)((a1, a2) =>
         (a1, a1)
       )
     """)
@@ -188,9 +189,9 @@ class RecursiveQueryTest extends FunSuite:
   test("SimpleFix: Wrong number of arguments") {
     val obtained = compileErrors(
       """
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.simpleFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.simpleFix(q1, q2)((a1, a2) =>
         (a1, a2, a1)
       )
     """)
@@ -201,14 +202,14 @@ class RecursiveQueryTest extends FunSuite:
 
 
     test("CustomFix: Linear recursive query") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) => (a1, a2))
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) => (a1, a2))
     }
     test("CustomFix: Linear recursive query with outside ref map/flatMap/filter") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         val r1 = for
           e1 <- a1
           e2 <- q2 // non-recursive reference
@@ -224,9 +225,9 @@ class RecursiveQueryTest extends FunSuite:
     }
 
     test("CustomFix: Linear recursive query with flatMap using comprehension") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         val r1 = for
           e1 <- a1
           e2 <- a2
@@ -242,9 +243,9 @@ class RecursiveQueryTest extends FunSuite:
     }
 
     test("CustomFix: Linear recursive query with flatMap using flatMap") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         val r1 = a1.flatMap(e1 =>
           a2.map(e2 =>
             e1 + e2
@@ -261,17 +262,17 @@ class RecursiveQueryTest extends FunSuite:
 
 
     test("CustomFix: Linear recursive query with outside ref union") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         (a1.union(q1), a2)
       )
     }
 
     test("CustomFix: Linear recursive query with outside ref unionAll") {
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         (a1.unionAll(q1), a2)
       )
     }
@@ -279,9 +280,9 @@ class RecursiveQueryTest extends FunSuite:
     test("CustomFix: Non-linear recursive query") {
       val obtained = compileErrors(
         """
-        val q1 = Query[Int]()
-        val q2 = Query[Int]()
-        Query.customFix(q1, q2)((a1, a2) =>
+        val q1 = RQQuery[Int]()
+        val q2 = RQQuery[Int]()
+        RQQuery.customFix(q1, q2)((a1, a2) =>
           (a1, a1)
         )
       """)
@@ -291,9 +292,9 @@ class RecursiveQueryTest extends FunSuite:
     test("CustomFix: Non-affine recursive query") {
       val obtained = compileErrors(
         """
-        val q1 = Query[Int]()
-        val q2 = Query[Int]()
-        Query.customFix(q1, q2)((a1, a2) =>
+        val q1 = RQQuery[Int]()
+        val q2 = RQQuery[Int]()
+        RQQuery.customFix(q1, q2)((a1, a2) =>
           (a1.union(a1), a2)
         )
       """)
@@ -303,9 +304,9 @@ class RecursiveQueryTest extends FunSuite:
     test("CustomFix: Non-affine recursive query with unionAll") {
       val obtained = compileErrors(
         """
-        val q1 = Query[Int]()
-        val q2 = Query[Int]()
-        Query.customFix(q1, q2)((a1, a2) =>
+        val q1 = RQQuery[Int]()
+        val q2 = RQQuery[Int]()
+        RQQuery.customFix(q1, q2)((a1, a2) =>
           (a1.unionAll(a1), a2)
         )
       """)
@@ -315,9 +316,9 @@ class RecursiveQueryTest extends FunSuite:
     test("CustomFix: Non-Linear recursive query with map/flatMap/filter") {
       val obtained = compileErrors(
         """
-        val q1 = Query[Int]()
-        val q2 = Query[Int]()
-        Query.customFix(q1, q2)((a1, a2) =>
+        val q1 = RQQuery[Int]()
+        val q2 = RQQuery[Int]()
+        RQQuery.customFix(q1, q2)((a1, a2) =>
           val r1 = for
             e1 <- a1
             e2 <- q2 // non-recursive reference
@@ -331,9 +332,9 @@ class RecursiveQueryTest extends FunSuite:
     test("CustomFix: Non-affine recursive query with map/flatMap/filter") {
       val obtained = compileErrors(
         """
-        val q1 = Query[Int]()
-        val q2 = Query[Int]()
-        Query.customFix(q1, q2)((a1, a2) =>
+        val q1 = RQQuery[Int]()
+        val q2 = RQQuery[Int]()
+        RQQuery.customFix(q1, q2)((a1, a2) =>
           val r1 = for
             e1 <- a1
             e2 <- a1
@@ -355,9 +356,9 @@ class RecursiveQueryTest extends FunSuite:
   test("CustomFix: Wrong number of arguments (more returns than args)") {
     val obtained = compileErrors(
       """
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      Query.customFix(q1, q2)((a1, a2) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2)((a1, a2) =>
         (a1, a2, a1)  // 3 returns but only 2 arguments
       )
     """)
@@ -369,10 +370,10 @@ class RecursiveQueryTest extends FunSuite:
     // because the type alignment is incorrect
     val obtained = compileErrors(
       """
-      val q1 = Query[Int]()
-      val q2 = Query[Int]()
-      val q3 = Query[Int]()
-      Query.customFix(q1, q2, q3)((a1, a2, a3) =>
+      val q1 = RQQuery[Int]()
+      val q2 = RQQuery[Int]()
+      val q3 = RQQuery[Int]()
+      RQQuery.customFix(q1, q2, q3)((a1, a2, a3) =>
         (a1, a2)  // 2 returns but 3 arguments
       )
     """)
@@ -382,16 +383,16 @@ class RecursiveQueryTest extends FunSuite:
 
   test("CustomFix: Non-Query type argument fails base constraints") {
     // When a non-Query type is passed, the base linearity constraints fail
-    // because the argument type doesn't match Query[?]
+    // because the argument type doesn't match RQQuery[?]
     val obtained = compileErrors(
       """
-      val q1 = Query[Int]()
+      val q1 = RQQuery[Int]()
       val nonQuery = 42
-      Query.customFix(q1, nonQuery)((a1, a2) =>
+      RQQuery.customFix(q1, nonQuery)((a1, a2) =>
         (a1, a1)
       )
     """)
-    // The error comes from the substructural constraint check, not the Query type check
+    // The error comes from the substructural constraint check, not the RQQuery type check
     // This is because type inference tries to work with (Query[Int], Int)
     assert(obtained.contains("Substructural constraint not satisfied"), s"obtained: $obtained")
   }

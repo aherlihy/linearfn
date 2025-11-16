@@ -6,7 +6,7 @@ import test.TestUtils
 
 class ExampleTest extends FunSuite:
 
-  import IntWrapperOps.*
+  import IntTypeOps.*
 
   test("Linear fn alone") {
     val a = IntType(10)
@@ -34,11 +34,11 @@ class ExampleTest extends FunSuite:
         RestrictedSelectable.RestrictedFn.customLinearFn(
           (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
         )(refs =>
-          val y = refs._1  // y is linear (Restricted[IntWrapper])
+          val y = refs._1  // y is linear (Restricted[IntType])
           Tuple1(IntType(x + x).add(y))  // x used twice (OK, captured), y used once (OK)
         )
 
-    // Apply it: f(10) returns a linear function that we can call with Tuple1(IntWrapper(20))
+    // Apply it: f(10) returns a linear function that we can call with Tuple1(IntType(20))
     val linearFn = f(10)
     val result = linearFn(Tuple1(IntType(20)))
 
@@ -49,9 +49,9 @@ class ExampleTest extends FunSuite:
   test("Curry custom linear fn: using y twice in comprehension should FAIL") {
     // Demonstrate that using a linear variable twice in a for-comprehension fails
     val obtained = compileErrors("""
-      import IntWrapperOps.*
+      import IntTypeOps.*
 
-      val f: Int => (Tuple1[IntWrapper] => Tuple1[IntWrapper]) =
+      val f: Int => (Tuple1[IntType] => Tuple1[IntType]) =
         (x: Int) =>
           RestrictedSelectable.RestrictedFn.customLinearFn(
             (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
@@ -62,7 +62,7 @@ class ExampleTest extends FunSuite:
           )
 
       val linearFn = f(10)
-      linearFn(Tuple1(IntWrapper(20)))
+      linearFn(Tuple1(IntType(20)))
     """)
 
     assert(obtained.contains("Affine constraint"), s"Expected linearity error, got: $obtained")
@@ -87,9 +87,9 @@ class ExampleTest extends FunSuite:
     // Demonstrate that using a linear variable twice in a for-comprehension fails
     val obtained = compileErrors(
       """
-      import IntWrapperOps.*
+      import IntTypeOps.*
 
-      val f: Int => (Tuple1[IntWrapper] => Tuple1[IntWrapper]) =
+      val f: Int => (Tuple1[IntType] => Tuple1[IntType]) =
         (x: Int) =>
           RestrictedSelectable.RestrictedFn.strictLinearFn(refs =>
             val y = refs._1
@@ -97,7 +97,7 @@ class ExampleTest extends FunSuite:
           )
 
       val linearFn = f(10)
-      linearFn(Tuple1(IntWrapper(20)))
+      linearFn(Tuple1(IntType(20)))
     """)
 
     assert(obtained.contains("Affine constraint"), s"Expected linearity error, got: $obtained")

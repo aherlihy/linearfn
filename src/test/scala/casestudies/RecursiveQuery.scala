@@ -12,59 +12,59 @@ import scala.annotation.implicitNotFound
 
 
 // Column-level AST
-trait Expr[Result] extends Selectable:
-  type Fields = NamedTuple.Map[NamedTuple.From[Result], Expr]
-  def selectDynamic(fieldName: String) = Expr.Select(this, fieldName)
-object Expr:
+trait RQExpr[Result] extends Selectable:
+  type Fields = NamedTuple.Map[NamedTuple.From[Result], RQExpr]
+  def selectDynamic(fieldName: String) = RQExpr.Select(this, fieldName)
+object RQExpr:
   type StripExpr[E] = E match
-    case Expr[b] => b
+    case RQExpr[b] => b
 
-  case class Select[A]($x: Expr[A], $name: String) extends Expr[A]
-  case class Project[A <: AnyNamedTuple]($a: A) extends Expr[NamedTuple.Map[A, StripExpr]]
+  case class Select[A]($x: RQExpr[A], $name: String) extends RQExpr[A]
+  case class Project[A <: AnyNamedTuple]($a: A) extends RQExpr[NamedTuple.Map[A, StripExpr]]
 
   private var refCount = 0
-  case class Ref[A](idx: Int = -1) extends Expr[A]:
+  case class Ref[A](idx: Int = -1) extends RQExpr[A]:
     private val $id = refCount
     refCount += 1
 
   case class Fun[A, B]($param: Ref[A], $body: B)
 
-  case class Plus($x: Expr[Int], $y: Expr[Int]) extends Expr[Int]
-  extension(x: Expr[Int])
-    def +(y: Expr[Int]): Expr[Int] = Plus(x, y)
+  case class Plus($x: RQExpr[Int], $y: RQExpr[Int]) extends RQExpr[Int]
+  extension(x: RQExpr[Int])
+    def +(y: RQExpr[Int]): RQExpr[Int] = Plus(x, y)
 
 // Query-level AST
 @ops
-class Query[A]():
+class RQQuery[A]():
   @repeatable
-  def flatMap[B](@restrictedReturn f: Expr.Ref[A] => Query[B]): Query[B] =
-    val ref = Expr.Ref[A]()
-    Query.FlatMap(this, Expr.Fun(ref, f(ref)))
+  def flatMap[B](@restrictedReturn f: RQExpr.Ref[A] => RQQuery[B]): RQQuery[B] =
+    val ref = RQExpr.Ref[A]()
+    RQQuery.FlatMap(this, RQExpr.Fun(ref, f(ref)))
 
   @repeatable
-  def map[B](@unrestricted f: Expr.Ref[A] => Expr[B]): Query[B] =
-    val ref = Expr.Ref[A]()
-    Query.Map(this, Expr.Fun(ref, f(ref)))
+  def map[B](@unrestricted f: RQExpr.Ref[A] => RQExpr[B]): RQQuery[B] =
+    val ref = RQExpr.Ref[A]()
+    RQQuery.Map(this, RQExpr.Fun(ref, f(ref)))
 
   @repeatable
-  def withFilter(@unrestricted predicate: Expr.Ref[A] => Expr[Boolean]): Query[A] =
-    val ref = Expr.Ref[A]()
-    Query.Filter[A](this, Expr.Fun(ref, predicate(ref)))
+  def withFilter(@unrestricted predicate: RQExpr.Ref[A] => RQExpr[Boolean]): RQQuery[A] =
+    val ref = RQExpr.Ref[A]()
+    RQQuery.Filter[A](this, RQExpr.Fun(ref, predicate(ref)))
 
   @repeatable
-  def union(that: Query[A]): Query[A] =
-    Query.Union[A](this, that)
+  def union(that: RQQuery[A]): RQQuery[A] =
+    RQQuery.Union[A](this, that)
 
   @repeatable
-  def unionAll(@restricted that: Query[A]): Query[A] =
-    Query.Union[A](this, that)
+  def unionAll(@restricted that: RQQuery[A]): RQQuery[A] =
+    RQQuery.Union[A](this, that)
 
-object Query:
-  case class Filter[A]($from: Query[A], $pred: Expr.Fun[A, Expr[Boolean]]) extends Query[A]
-  case class Map[A, B]($from: Query[A], $query: Expr.Fun[A, Expr[B]]) extends Query[B]
-  case class FlatMap[A, B]($from: Query[A], $query: Expr.Fun[A, Query[B]]) extends Query[B]
-  case class Union[A]($left: Query[A], $right: Query[A]) extends Query[A]
-  case class RecursiveQuery[Q <: Tuple](queries: Q) extends Query[Any]
+object RQQuery:
+  case class Filter[A]($from: RQQuery[A], $pred: RQExpr.Fun[A, RQExpr[Boolean]]) extends RQQuery[A]
+  case class Map[A, B]($from: RQQuery[A], $query: RQExpr.Fun[A, RQExpr[B]]) extends RQQuery[B]
+  case class FlatMap[A, B]($from: RQQuery[A], $query: RQExpr.Fun[A, RQQuery[B]]) extends RQQuery[B]
+  case class Union[A]($left: RQQuery[A], $right: RQQuery[A]) extends RQQuery[A]
+  case class RecursiveQuery[Q <: Tuple](queries: Q) extends RQQuery[Any]
   export RestrictedSelectable.RestrictedFn.strictApply as fix
 
   /**
@@ -89,7 +89,7 @@ object Query:
       @implicitNotFound("simpleFix requires same number of args and returns")
       evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
       @implicitNotFound("simpleFix requires all arguments to be Query types")
-      evQuery: Tuple.Union[QT] <:< Query[?]
+      evQuery: Tuple.Union[QT] <:< RQQuery[?]
   ): RQT =
     // User code decides how to handle the result - in this case, cast to QT
     builder.execute(bases)(fns)
@@ -119,7 +119,7 @@ object Query:
       @implicitNotFound("customFix requires same number of args and returns")
       evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
       @implicitNotFound("customFix requires all arguments to be Query types")
-      evQuery: Tuple.Union[QT] <:< Query[?]
+      evQuery: Tuple.Union[QT] <:< RQQuery[?]
   ): RQT =
     builder.execute(bases)(fns)
 
