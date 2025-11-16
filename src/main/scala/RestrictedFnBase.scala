@@ -484,6 +484,37 @@ abstract class RestrictedFnBase:
     ): AT => RT =
       (args: AT) => applyImpl[AT, RT, RQT](args)(fns)
 
+
+    def strictLinearFn[
+      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
+    ](fns: ToRestrictedRef[AT] => RQT)(
+       using
+       // Basic type extraction evidences
+       @implicitNotFound(ErrorMsg.invalidResultTypes)
+       ev1: RT =:= ExtractResultTypes[RQT],
+
+       @implicitNotFound(ErrorMsg.invalidDependencyTypes)
+       ev1b: DT =:= ExtractDependencyTypes[RQT],
+
+       @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
+       ev1c: CT =:= ExtractConsumedTypes[RQT],
+
+       @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
+       ev3: RQT =:= ToRestricted[RT, DT, CT],
+
+       // Vertical constraint evidence
+       @implicitNotFound(ErrorMsg.verticalConstraintFailed)
+       evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
+
+       // Horizontal constraint evidences (two separate checks)
+       @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
+       evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
+
+       @implicitNotFound(ErrorMsg.horizontalAffineFailed)
+       evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT]
+     ): AT => RT =
+      (args: AT) => applyImpl[AT, RT, RQT](args)(fns)
+
     /**
      * apply - Convenience method for the default linear function behavior.
      *

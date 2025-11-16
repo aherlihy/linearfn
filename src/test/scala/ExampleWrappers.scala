@@ -3,7 +3,7 @@ package test
 import linearfn.ops
 
 @ops
-class IntWrapper(val value: Int):
-  def add(other: IntWrapper): IntWrapper =
-    IntWrapper(this.value + other.value)
+class IntType(val value: Int):
+  def add(other: IntType): IntType =
+    IntType(this.value + other.value)
 

@@ -9,8 +9,8 @@ class ExampleTest extends FunSuite:
   import IntWrapperOps.*
 
   test("Linear fn alone") {
-    val a = IntWrapper(10)
-    val b = IntWrapper(20)
+    val a = IntType(10)
+    val b = IntType(20)
 
     val result = RestrictedSelectable.RestrictedFn.customApply(
       (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
@@ -20,7 +20,7 @@ class ExampleTest extends FunSuite:
     assert(result._1.value == 10)
   }
 
-  test("Curry linear fn: f x y = (x + x, y)") {
+  test("Curry custom linear fn: f x y = (x + x, y)") {
     // f :: Int -> Int %1 -> (Int, Int)
     // f x y = (x + x, y)
     // This should SUCCEED because:
@@ -28,25 +28,25 @@ class ExampleTest extends FunSuite:
     // - y is linear (used exactly once in the linear function body)
 
     // The curried function: outer function takes x (non-linear), returns a linear function
-    val f: Int => (Tuple1[IntWrapper] => Tuple1[IntWrapper]) =
+    val f: Int => (Tuple1[IntType] => Tuple1[IntType]) =
       (x: Int) =>
         // Return a linear function that takes y
         RestrictedSelectable.RestrictedFn.customLinearFn(
           (vertical = VerticalConstraint.Affine, horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
         )(refs =>
           val y = refs._1  // y is linear (Restricted[IntWrapper])
-          Tuple1(IntWrapper(x + x).add(y))  // x used twice (OK, captured), y used once (OK)
+          Tuple1(IntType(x + x).add(y))  // x used twice (OK, captured), y used once (OK)
         )
 
     // Apply it: f(10) returns a linear function that we can call with Tuple1(IntWrapper(20))
     val linearFn = f(10)
-    val result = linearFn(Tuple1(IntWrapper(20)))
+    val result = linearFn(Tuple1(IntType(20)))
 
     assertEquals(result._1.value, 40)  // (x + x) + y = 20 + 20 = 40
   }
 
 
-  test("Curry linear fn: using y twice in comprehension should FAIL") {
+  test("Curry custom linear fn: using y twice in comprehension should FAIL") {
     // Demonstrate that using a linear variable twice in a for-comprehension fails
     val obtained = compileErrors("""
       import IntWrapperOps.*
@@ -58,6 +58,41 @@ class ExampleTest extends FunSuite:
           )(refs =>
             val y = refs._1
             // Try to use y twice by adding it to itself
+            Tuple1(y.add(y))  // y used twice - should fail!
+          )
+
+      val linearFn = f(10)
+      linearFn(Tuple1(IntWrapper(20)))
+    """)
+
+    assert(obtained.contains("Affine constraint"), s"Expected linearity error, got: $obtained")
+  }
+
+  test("Curry linear fn: f x y = (x + x, y)") {
+    val f: Int => (Tuple1[IntType] => Tuple1[IntType]) =
+      (x: Int) =>
+        RestrictedSelectable.RestrictedFn.strictLinearFn(refs =>
+          val y = refs._1
+          Tuple1(IntType(x + x).add(y))
+        )
+
+    val linearFn = f(10)
+    val result = linearFn(Tuple1(IntType(20)))
+
+    assertEquals(result._1.value, 40)
+  }
+
+
+  test("Curry linear fn: using y twice in comprehension should FAIL") {
+    // Demonstrate that using a linear variable twice in a for-comprehension fails
+    val obtained = compileErrors(
+      """
+      import IntWrapperOps.*
+
+      val f: Int => (Tuple1[IntWrapper] => Tuple1[IntWrapper]) =
+        (x: Int) =>
+          RestrictedSelectable.RestrictedFn.strictLinearFn(refs =>
+            val y = refs._1
             Tuple1(y.add(y))  // y used twice - should fail!
           )
 
