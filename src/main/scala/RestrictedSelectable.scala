@@ -134,5 +134,5 @@ object RestrictedSelectable extends RestrictedFnBase:
         RestrictedRef[F[A], D, C](() => ev.map(container)(_.execute()))
 
   // Implement abstract methods from RestrictedFnBase
-  protected def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
+  def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
     Restricted.RestrictedRef(fn)

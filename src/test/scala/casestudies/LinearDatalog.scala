@@ -83,7 +83,8 @@ object Query:
     intensionalRefCount += 1
     override def toString: String = s"IntensionalRef(id = ${idx})"
 
-  case class IntensionalPredicates[R](//TODO!)
+  case class IntensionalPredicates[R](predicates: scala.collection.immutable.Map[IntensionalRef[Any], Query[Any]], idx: Int) extends Query[R]:
+    override def toString: String = s"IntensionalPredicates(predicates = ${predicates}, idx = ${idx})"
   export RestrictedSelectable.RestrictedFn.strictApply as fix
 
   /**
@@ -110,4 +111,25 @@ object Query:
       evStrict: Tuple.Size[QT] =:= Tuple.Size[RQT],
       @implicitNotFound("customFix requires all arguments to be Query types")
       evQuery: Tuple.Union[QT] <:< Query[?]
-  ) = ???
+  ) = {
+    val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any]())
+    val restrictedRefs = argsRefs.map(a => RestrictedSelectable.makeRestrictedRef(() => a)).toArray
+    val refsTuple = Tuple.fromArray(restrictedRefs).asInstanceOf[RestrictedSelectable.ToRestrictedRef[QT]]
+    val exec = fns(refsTuple)
+    val evaluatedT = RestrictedSelectable.tupleExecute(exec)
+    val unioned = bases.toArray.zip(evaluatedT.toArray).map { (baseQ, evalQ) =>
+      baseQ.asInstanceOf[Query[Any]].union(evalQ.asInstanceOf[Query[Any]])
+    }
+    val predicates = argsRefs.zip(unioned).toMap
+    (0 to argsRefs.size).map(i => IntensionalPredicates(predicates, i))
+  }
+
+// Intermediate Representation
+object IR:
+  case class Program(predicates: Map[String, PredicateDef])
+  case class PredicateDef(name: String, rules: List[Rule])
+  case class Rule(head: Atom, body: List[Atom])
+  case class Atom(predicate: String, terms: List[Term])
+  sealed trait Term
+  case class Var(name: String) extends Term
+  case class Const(value: String) extends Term
