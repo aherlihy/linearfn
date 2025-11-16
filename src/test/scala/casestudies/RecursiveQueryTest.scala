@@ -18,6 +18,15 @@ class RecursiveQueryTest extends FunSuite:
     yield a1 + a2
   }
 
+  test("Construct normal query base filter") {
+    val q1 = RQQuery[Int]()
+    val q2 = RQQuery[Int]().union(q1)
+    for
+      a1 <- q1
+      a2 <- q2
+    yield a1 + a2
+  }
+
   test("Linear recursive query") {
     val q1 = RQQuery[Int]()
     val q2 = RQQuery[Int]()

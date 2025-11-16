@@ -76,8 +76,8 @@ object RestrictedSelectable extends RestrictedFnBase:
             case other => unwrapNested(other)
           }.toSeq
 
-          // Get all methods with this name
-          val candidates = obj.getClass.getDeclaredMethods.filter(_.getName == name)
+          // Get all methods with this name (including inherited methods)
+          val candidates = obj.getClass.getMethods.filter(_.getName == name)
 
           val method = candidates match {
             case Array(single) =>
