@@ -80,7 +80,7 @@ class Query[A]():
     program.toDatalog
 
 object Query:
-  private var predCounter = 0
+  var predCounter = 0  // Made public for testing
   def freshPredName(): String =  // Made public for LinearDatalogImpl
     val name = s"p$predCounter"
     predCounter += 1
@@ -106,9 +106,12 @@ object Query:
     override def toString: String = s"Union(left = ${$left}, right = ${$right})"
 
   var intensionalRefCount = 0
-  case class IntensionalRef[A]() extends Query[A]:
-    val id = intensionalRefCount  // Made public for LinearDatalogImpl
+  private def freshIntensionalId(): Int =
+    val id = intensionalRefCount
     intensionalRefCount += 1
+    id
+
+  case class IntensionalRef[A](id: Int) extends Query[A]:
     override def toString: String = s"IntensionalRef(id = ${id})"
 
   case class IntensionalPredicates[R](predicates: scala.collection.immutable.Map[IntensionalRef[Any], Query[Any]], idx: Int) extends Query[R]:
@@ -140,7 +143,7 @@ object Query:
       @implicitNotFound("customFix requires all arguments to be Query types")
       evQuery: Tuple.Union[QT] <:< Query[?]
   ) = {
-    val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any]())
+    val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))
     val restrictedRefs = argsRefs.map(a => RestrictedSelectable.makeRestrictedRef(() => a)).toArray
     val refsTuple = Tuple.fromArray(restrictedRefs).asInstanceOf[RestrictedSelectable.ToRestrictedRef[QT]]
     val exec = fns(refsTuple)
@@ -149,7 +152,7 @@ object Query:
       baseQ.asInstanceOf[Query[Any]].union(evalQ.asInstanceOf[Query[Any]])
     }
     val predicates = argsRefs.zip(unioned).toMap
-    (0 to argsRefs.size).map(i => IntensionalPredicates(predicates, i))
+    (0 until argsRefs.size).map(i => IntensionalPredicates(predicates, i))
   }
 
 // Intermediate Representation

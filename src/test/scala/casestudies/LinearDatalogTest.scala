@@ -59,8 +59,8 @@ class LinearDatalogTest extends FunSuite:
 
 p3(v2, v3) :- q2(v2, v3).
 
-p1(v4) :- p2(v4).
-p1(v4) :- p3(v4)."""
+p1(v4, v5) :- p2(v4, v5).
+p1(v4, v5) :- p3(v4, v5)."""
     assertEquals(datalog, expected)
   }
 
@@ -109,10 +109,10 @@ p8(v2, v3) :- p9(v2, v3)."""
 
 p13(v2, v3) :- q2(v2, v3).
 
-p11(v4) :- p12(v4).
-p11(v4) :- p13(v4).
+p11(v4, v5) :- p12(v4, v5).
+p11(v4, v5) :- p13(v4, v5).
 
-p10(v6, v5) :- p11(v5, v6)."""
+p10(v7, v6) :- p11(v6, v7)."""
     assertEquals(datalog, expected)
   }
 
@@ -190,5 +190,359 @@ p21(v2, v7) :- p22(v2, v3), p23(v3, v7)."""
 p26(v4, v5) :- nodes(v4, v5).
 
 p24(v2, v7) :- p25(v2, v3), p26(v3, v7), v7 == 10."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from recursive fixedPoint query") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    val edges = Query.edb[IntRow]("edges")
+    val path = Query.fixedPoint(Tuple1(edges))((p) =>
+      Tuple1(
+        p._1.flatMap(p1 =>
+          edges.filter(e => p1.i2 == e.i1)
+               .map(e => (i1 = p1.i1, i2 = e.i2))
+        )
+      )
+    )(0)
+    val datalog = path.peek()
+    // Should generate recursive path rules:
+    // The structure creates intermediate predicates but the IDB predicate (idb0) is recursive:
+    // - p1: base case (edges)
+    // - p2: recursive case (join of p3 with edges)
+    // - p3: reference to idb0
+    // - idb0: union of p1 and p2, making it recursive
+    // - p4: second occurrence of edges in the recursive case
+    val expected = """p1(v0, v1) :- edges(v0, v1).
+
+p3(v2, v3) :- idb0(v2, v3).
+
+p4(v6, v7) :- edges(v6, v7).
+
+p2(v4, v9) :- p3(v4, v5), p4(v5, v9).
+
+idb0(v10, v11) :- p1(v10, v11).
+idb0(v10, v11) :- p2(v10, v11)."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from fixedPoint with 2 independent predicates") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    // Two independent recursive predicates: reachable and visited
+    val edges = Query.edb[IntRow]("edges")
+    val nodes = Query.edb[IntRow]("nodes")
+
+    val (reachable, visited) = Query.fixedPoint((edges, nodes))((p) =>
+      (
+        // reachable: transitive closure of edges (independent of visited)
+        p._1.flatMap(r =>
+          edges.filter(e => r.i2 == e.i1)
+               .map(e => (i1 = r.i1, i2 = e.i2))
+        ),
+        // visited: nodes that are reachable (independent of reachable)
+        p._2.flatMap(v =>
+          nodes.filter(n => v.i2 == n.i1)
+               .map(n => (i1 = v.i1, i2 = n.i2))
+        )
+      )
+    ) match {
+      case seq => (seq(0), seq(1))
+    }
+
+    val datalog = reachable.peek()
+    // Both predicates are in the same program, but they are independent
+    // (idb0 doesn't reference idb1 and vice versa - they only reference themselves)
+    val expected = """p1(v0, v1) :- edges(v0, v1).
+
+p3(v2, v3) :- idb0(v2, v3).
+
+p4(v6, v7) :- edges(v6, v7).
+
+p2(v4, v9) :- p3(v4, v5), p4(v5, v9).
+
+idb0(v10, v11) :- p1(v10, v11).
+idb0(v10, v11) :- p2(v10, v11).
+
+p5(v12, v13) :- nodes(v12, v13).
+
+p7(v14, v15) :- idb1(v14, v15).
+
+p8(v18, v19) :- nodes(v18, v19).
+
+p6(v16, v21) :- p7(v16, v17), p8(v17, v21).
+
+idb1(v22, v23) :- p5(v22, v23).
+idb1(v22, v23) :- p6(v22, v23)."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from fixedPoint with 2 predicates using union") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    val edges1 = Query.edb[IntRow]("edges1")
+    val edges2 = Query.edb[IntRow]("edges2")
+
+    // Two predicates where second one unions the first
+    val (path1, path2) = Query.fixedPoint((edges1, edges2))((p) =>
+      (
+        // path1: transitive closure of edges1
+        p._1.flatMap(p1 =>
+          edges1.filter(e => p1.i2 == e.i1)
+                .map(e => (i1 = p1.i1, i2 = e.i2))
+        ),
+        // path2: combines path1 with transitive closure of edges2
+        p._1.union(
+          p._2.flatMap(p2 =>
+            edges2.filter(e => p2.i2 == e.i1)
+                  .map(e => (i1 = p2.i1, i2 = e.i2))
+          )
+        )
+      )
+    ) match {
+      case seq => (seq(0), seq(1))
+    }
+
+    val datalog = path2.peek()
+    // path2 references both idb0 (path1) and idb1 (itself)
+    val expected = """p1(v0, v1) :- edges1(v0, v1).
+
+p3(v2, v3) :- idb0(v2, v3).
+
+p4(v6, v7) :- edges1(v6, v7).
+
+p2(v4, v9) :- p3(v4, v5), p4(v5, v9).
+
+idb0(v10, v11) :- p1(v10, v11).
+idb0(v10, v11) :- p2(v10, v11).
+
+p5(v12, v13) :- edges2(v12, v13).
+
+p7(v14, v15) :- idb0(v14, v15).
+
+p9(v16, v17) :- idb1(v16, v17).
+
+p10(v20, v21) :- edges2(v20, v21).
+
+p8(v18, v23) :- p9(v18, v19), p10(v19, v23).
+
+p6(v24, v25) :- p7(v24, v25).
+p6(v24, v25) :- p8(v24, v25).
+
+idb1(v26, v27) :- p5(v26, v27).
+idb1(v26, v27) :- p6(v26, v27)."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from fixedPoint with 2 predicates using join") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    val edges = Query.edb[IntRow]("edges")
+    val labels = Query.edb[IntRow]("labels")
+
+    // Two predicates where second one joins with the first
+    val (path, labeledPath) = Query.fixedPoint((edges, labels))((p) =>
+      (
+        // path: transitive closure of edges
+        p._1.flatMap(p1 =>
+          edges.filter(e => p1.i2 == e.i1)
+               .map(e => (i1 = p1.i1, i2 = e.i2))
+        ),
+        // labeledPath: joins path (p._1) with labels (p._2)
+        p._1.flatMap(pth =>
+          p._2.filter(l => pth.i2 == l.i1)
+              .map(l => (i1 = pth.i1, i2 = l.i2))
+        )
+      )
+    ) match {
+      case seq => (seq(0), seq(1))
+    }
+
+    val datalog = labeledPath.peek()
+    // labeledPath references idb0 (path) and idb1 (itself) via a join
+    val expected = """p1(v0, v1) :- edges(v0, v1).
+
+p3(v2, v3) :- idb0(v2, v3).
+
+p4(v6, v7) :- edges(v6, v7).
+
+p2(v4, v9) :- p3(v4, v5), p4(v5, v9).
+
+idb0(v10, v11) :- p1(v10, v11).
+idb0(v10, v11) :- p2(v10, v11).
+
+p5(v12, v13) :- labels(v12, v13).
+
+p7(v14, v15) :- idb0(v14, v15).
+
+p8(v18, v19) :- idb1(v18, v19).
+
+p6(v16, v21) :- p7(v16, v17), p8(v17, v21).
+
+idb1(v22, v23) :- p5(v22, v23).
+idb1(v22, v23) :- p6(v22, v23)."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from fixedPoint with 3 predicates with dependencies") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    val edges = Query.edb[IntRow]("edges")
+    val nodes = Query.edb[IntRow]("nodes")
+    val attrs = Query.edb[IntRow]("attrs")
+
+    // Three predicates with complex dependencies
+    val (path, reachableNodes, nodeAttrs) = Query.fixedPoint((edges, nodes, attrs))((p) =>
+      (
+        // path: transitive closure of edges
+        p._1.flatMap(p1 =>
+          edges.filter(e => p1.i2 == e.i1)
+               .map(e => (i1 = p1.i1, i2 = e.i2))
+        ),
+        // reachableNodes: nodes reachable via path (uses p._1)
+        p._1.flatMap(pth =>
+          nodes.filter(n => pth.i2 == n.i1)
+               .map(n => (i1 = pth.i1, i2 = n.i2))
+        ),
+        // nodeAttrs: combines reachableNodes with attrs (uses p._2 and p._3)
+        p._2.flatMap(rn =>
+          attrs.filter(a => rn.i2 == a.i1)
+               .map(a => (i1 = rn.i1, i2 = a.i2))
+        ).union(p._3)
+      )
+    ) match {
+      case seq => (seq(0), seq(1), seq(2))
+    }
+
+    val datalog = nodeAttrs.peek()
+    // All three predicates (idb0, idb1, idb2) are in the program
+    // nodeAttrs depends on reachableNodes (idb1) and attrs (idb2)
+    val expected = """p1(v0, v1) :- edges(v0, v1).
+
+p3(v2, v3) :- idb0(v2, v3).
+
+p4(v6, v7) :- edges(v6, v7).
+
+p2(v4, v9) :- p3(v4, v5), p4(v5, v9).
+
+idb0(v10, v11) :- p1(v10, v11).
+idb0(v10, v11) :- p2(v10, v11).
+
+p5(v12, v13) :- nodes(v12, v13).
+
+p7(v14, v15) :- idb0(v14, v15).
+
+p8(v18, v19) :- nodes(v18, v19).
+
+p6(v16, v21) :- p7(v16, v17), p8(v17, v21).
+
+idb1(v22, v23) :- p5(v22, v23).
+idb1(v22, v23) :- p6(v22, v23).
+
+p9(v24, v25) :- attrs(v24, v25).
+
+p12(v26, v27) :- idb1(v26, v27).
+
+p13(v30, v31) :- attrs(v30, v31).
+
+p11(v28, v33) :- p12(v28, v29), p13(v29, v33).
+
+p14(v34, v35) :- idb2(v34, v35).
+
+p10(v36, v37) :- p11(v36, v37).
+p10(v36, v37) :- p14(v36, v37).
+
+idb2(v38, v39) :- p9(v38, v39).
+idb2(v38, v39) :- p10(v38, v39)."""
+    assertEquals(datalog, expected)
+  }
+
+  test("Generate Datalog from fixedPoint with mutual recursion") {
+    // Reset counters for deterministic predicate names
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    val edges = Query.edb[IntRow]("edges")
+    val revEdges = Query.edb[IntRow]("revEdges")
+
+    // Two mutually recursive predicates
+    val (forward, backward) = Query.fixedPoint((edges, revEdges))((p) =>
+      (
+        // forward: uses both forward and backward paths
+        p._1.flatMap(f =>
+          edges.filter(e => f.i2 == e.i1)
+               .map(e => (i1 = f.i1, i2 = e.i2))
+        ).union(
+          p._2.flatMap(b =>
+            edges.filter(e => b.i2 == e.i1)
+                 .map(e => (i1 = b.i1, i2 = e.i2))
+          )
+        ),
+        // backward: uses both forward and backward paths
+        p._2.flatMap(b =>
+          revEdges.filter(e => b.i2 == e.i1)
+                  .map(e => (i1 = b.i1, i2 = e.i2))
+        ).union(
+          p._1.flatMap(f =>
+            revEdges.filter(e => f.i2 == e.i1)
+                    .map(e => (i1 = f.i1, i2 = e.i2))
+          )
+        )
+      )
+    ) match {
+      case seq => (seq(0), seq(1))
+    }
+
+    val datalog = forward.peek()
+    // Both predicates reference each other (mutual recursion)
+    val expected = """p1(v0, v1) :- edges(v0, v1).
+
+p4(v2, v3) :- idb0(v2, v3).
+
+p5(v6, v7) :- edges(v6, v7).
+
+p3(v4, v9) :- p4(v4, v5), p5(v5, v9).
+
+p7(v10, v11) :- idb1(v10, v11).
+
+p8(v14, v15) :- edges(v14, v15).
+
+p6(v12, v17) :- p7(v12, v13), p8(v13, v17).
+
+p2(v18, v19) :- p3(v18, v19).
+p2(v18, v19) :- p6(v18, v19).
+
+idb0(v20, v21) :- p1(v20, v21).
+idb0(v20, v21) :- p2(v20, v21).
+
+p9(v22, v23) :- revEdges(v22, v23).
+
+p12(v24, v25) :- idb1(v24, v25).
+
+p13(v28, v29) :- revEdges(v28, v29).
+
+p11(v26, v31) :- p12(v26, v27), p13(v27, v31).
+
+p15(v32, v33) :- idb0(v32, v33).
+
+p16(v36, v37) :- revEdges(v36, v37).
+
+p14(v34, v39) :- p15(v34, v35), p16(v35, v39).
+
+p10(v40, v41) :- p11(v40, v41).
+p10(v40, v41) :- p14(v40, v41).
+
+idb1(v42, v43) :- p9(v42, v43).
+idb1(v42, v43) :- p10(v42, v43)."""
     assertEquals(datalog, expected)
   }

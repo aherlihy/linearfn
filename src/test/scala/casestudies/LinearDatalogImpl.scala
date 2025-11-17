@@ -26,7 +26,7 @@ object LinearDatalogImpl:
       case q: Query.IntensionalPredicates[?] => translateIntensionalPredicates(q, targetName, env, nextIdx)
       case _ =>
         // Default case for unknown query types
-        (IR.Program(scala.collection.immutable.Map.empty), targetName, nextIdx)
+        (IR.Program(scala.collection.immutable.ListMap.empty), targetName, nextIdx)
 
   private def translateEDB(
     query: Query.EDB[?],
@@ -40,7 +40,7 @@ object LinearDatalogImpl:
     val headAtom = IR.Atom(targetName, vars)
     val rule = IR.Rule(headAtom, List(bodyAtom))
 
-    val predicates = scala.collection.immutable.Map(targetName -> IR.PredicateDef(targetName, List(rule)))
+    val predicates = scala.collection.immutable.ListMap(targetName -> IR.PredicateDef(targetName, List(rule)))
     (IR.Program(predicates), targetName, nextIdx + query.arity)
 
   private def translateFilter(
@@ -289,8 +289,8 @@ object LinearDatalogImpl:
     val (rightProg, rightPred, nextIdx2) = translate(query.$right, Query.freshPredName(), env, nextIdx1)
 
     // Create two rules: one for each union branch
-    // Both rules have the same head with the same variable
-    val vars = List(IR.Var(s"v$nextIdx2"))
+    // Both rules have the same head with the same variables (assuming arity 2)
+    val vars = List(IR.Var(s"v$nextIdx2"), IR.Var(s"v${nextIdx2 + 1}"))
 
     val leftBodyAtom = IR.Atom(leftPred, vars)
     val rightBodyAtom = IR.Atom(rightPred, vars)
@@ -303,7 +303,7 @@ object LinearDatalogImpl:
 
     val combinedPreds = leftProg.predicates ++ rightProg.predicates +
       (targetName -> IR.PredicateDef(targetName, List(leftRule, rightRule)))
-    (IR.Program(combinedPreds), targetName, nextIdx2 + 1)
+    (IR.Program(combinedPreds), targetName, nextIdx2 + 2)
 
   private def translateIntensionalRef(
     query: Query.IntensionalRef[?],
@@ -313,17 +313,17 @@ object LinearDatalogImpl:
   ): (IR.Program, String, Int) =
     env.get(query) match
       case Some(predName) =>
-        // Reference to an already-defined intensional predicate
-        val vars = List(IR.Var(s"v$nextIdx"))
+        // Reference to an already-defined intensional predicate (assuming arity 2)
+        val vars = List(IR.Var(s"v$nextIdx"), IR.Var(s"v${nextIdx + 1}"))
         val bodyAtom = IR.Atom(predName, vars)
         val headAtom = IR.Atom(targetName, vars)
         val rule = IR.Rule(headAtom, List(bodyAtom))
 
-        val predicates = scala.collection.immutable.Map(targetName -> IR.PredicateDef(targetName, List(rule)))
-        (IR.Program(predicates), targetName, nextIdx + 1)
+        val predicates = scala.collection.immutable.ListMap(targetName -> IR.PredicateDef(targetName, List(rule)))
+        (IR.Program(predicates), targetName, nextIdx + 2)
       case None =>
         // Unresolved reference
-        (IR.Program(scala.collection.immutable.Map.empty), targetName, nextIdx)
+        (IR.Program(scala.collection.immutable.ListMap.empty), targetName, nextIdx)
 
   private def translateIntensionalPredicates(
     query: Query.IntensionalPredicates[?],
@@ -331,10 +331,28 @@ object LinearDatalogImpl:
     env: scala.collection.immutable.Map[Query[?], String],
     nextIdx: Int
   ): (IR.Program, String, Int) =
+    // Process all predicates in the fixed point
+    // Each IntensionalRef gets assigned a predicate name like "idb0", "idb1", etc.
+    var allPredicates = scala.collection.immutable.ListMap.empty[String, IR.PredicateDef]
+    var nextIdx1 = nextIdx
+
+    // Build environment mapping IntensionalRef -> predicate name
+    val newEnv = query.predicates.keys.map { ref =>
+      (ref.asInstanceOf[Query[?]], s"idb${ref.id}")
+    }.toMap
+
+    // Translate each recursive predicate definition
+    query.predicates.foreach { (ref, queryDef) =>
+      val predName = s"idb${ref.id}"
+      val (prog, _, nextIdx2) = translate(queryDef, predName, env ++ newEnv, nextIdx1)
+      allPredicates = allPredicates ++ prog.predicates
+      nextIdx1 = nextIdx2
+    }
+
     // Return the predicate at the specified index
-    val predQuery = query.predicates.values.toList(query.idx)
-    val updatedEnv = env ++ query.predicates.map { case (ref, q) => (ref, s"idb${ref.id}") }
-    translate(predQuery, targetName, updatedEnv, nextIdx)
+    val sortedRefs = query.predicates.keys.toList.sortBy(_.id)
+    val resultPredName = s"idb${sortedRefs(query.idx).id}"
+    (IR.Program(allPredicates), resultPredName, nextIdx1)
 
   /**
    * Convert an expression to a list of terms for use in rule heads.
