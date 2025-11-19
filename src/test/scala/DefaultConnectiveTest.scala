@@ -13,7 +13,7 @@ import scala.annotation.experimental
  * - ForAll-Affine + ForAll-Relevant semantics for plain tuples
  */
 @experimental
-class ConnectiveTest extends FunSuite:
+class DefaultConnectiveTest extends FunSuite:
   import OpsExampleOps.*
   // ============================================================================
   // Tests for ForAll-Affine + ForAll-Relevant semantics
