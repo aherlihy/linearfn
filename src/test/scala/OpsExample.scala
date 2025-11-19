@@ -1,6 +1,6 @@
 package test
 
-import linearfn.{ops, unrestricted, repeatable}
+import linearfn.{consumed, ops, repeatable, unrestricted}
 
 /**
  * Comprehensive example class for testing @ops annotation and extension generation.
@@ -16,6 +16,9 @@ import linearfn.{ops, unrestricted, repeatable}
  */
 @ops
 case class OpsExample(name: String, value: String = ""):
+  @consumed
+  def consume(): OpsExample =
+    this
   /** Method with no arguments */
   @repeatable
   def noArg(): String = s"Hello, I'm $name"

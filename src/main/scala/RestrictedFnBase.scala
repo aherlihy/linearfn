@@ -183,6 +183,15 @@ abstract class RestrictedFnBase:
     case h *: tail => LiftInnerType[h] match
       case (_, _, c) => c *: ExtractConsumedTypes[tail]
 
+  // Extract consumed types but mark unrestricted values (d = EmptyTuple) as Tuple1[true]
+  // This keeps tuple lengths consistent and treats unrestricted values as always satisfying multiplicity
+  type ExtractConsumedTypesForChecking[RQT <: Tuple, DT <: Tuple] <: Tuple = (RQT, DT) match
+    case (EmptyTuple, EmptyTuple) => EmptyTuple
+    case (h *: tail, d *: dtail) => d match
+      case EmptyTuple => Tuple1[true] *: ExtractConsumedTypesForChecking[tail, dtail]  // Unrestricted - mark as consumed
+      case _ => LiftInnerType[h] match
+        case (_, _, c) => c *: ExtractConsumedTypesForChecking[tail, dtail]
+
   type CollateDeps[A, D <: Tuple] <: Tuple = A match
     case Restricted[a, d, _] => Tuple.Concat[d, D]
     case _ => D
@@ -218,6 +227,8 @@ abstract class RestrictedFnBase:
   // Used by apply/applyMulti - allows unconsumed values
   // C = EmptyTuple (length 0): unconsumed
   // C = Tuple1[true] (length 1): consumed
+  // NOTE: This is used with ExtractConsumedTypesWithDeps which filters out values with no dependencies,
+  // so we might see fewer elements than total return values
   type AllConsumedStatesAtMostOne[CT <: Tuple] <: Boolean = CT match
     case EmptyTuple => true
     case h *: t => Tuple.Size[h] match
@@ -252,6 +263,12 @@ abstract class RestrictedFnBase:
     case Multiplicity.Linear => AllConsumedStatesExactlyOne[CT]
     case Multiplicity.Affine => AllConsumedStatesAtMostOne[CT]
     case Multiplicity.Relevant => AllConsumedStatesAtLeastOne[CT]
+
+  // Check ForAll-Affine constraint based on Multiplicity type
+  // For Relevant, skip the ForAll-Affine check (allow arguments to be used multiple times)
+  type CheckForAllAffineForMultiplicity[M <: Multiplicity, AT <: Tuple, RQT <: Tuple] <: Boolean = M match
+    case Multiplicity.Relevant => true  // Skip ForAll-Affine for Relevant
+    case _ => AllArgsUsedAtMostOnceTotal[GenerateIndices[0, Tuple.Size[AT]], RQT]
 
   // Check strict constraint (n args → n returns with same types)
   type CheckStrictConstraint[Strict <: Boolean, AT <: Tuple, RT <: Tuple] = Strict match
@@ -397,8 +414,7 @@ abstract class RestrictedFnBase:
       def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT
 
     object LinearFnBuilder:
-      // Builder for ComposedConnective - the only supported return type
-      // This enforces all constraints: input multiplicity, ForAll, and ForEach
+      // Builder for ComposedConnective - enforces custom connective constraints
       given connectiveBuilder[
         M <: Multiplicity,
         AT <: Tuple,
@@ -423,15 +439,48 @@ abstract class RestrictedFnBase:
           val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
           fns(refsTuple)
 
+      // Builder for plain tuples - treats them as a built-in connective with ForAll-Relevant + ForAll-Affine
+      // This is the implicit connective for regular tuple returns:
+      // - Each argument must be used at least once across all returns (ForAll-Relevant)
+      // - Each argument can be used at most once across all returns (ForAll-Affine)
+      given tupleBuilder[
+        M <: Multiplicity,
+        AT <: Tuple,
+        RQT <: Tuple
+      ](using
+        // Input multiplicity constraint (on arguments)
+        @implicitNotFound(ErrorMsg.multiplicityConstraintFailed)
+        evM: CheckMultiplicity[M, ExtractConsumedTypes[RQT]] =:= true,
+
+        // ForAll-Relevant: all arguments must be used at least once across all returns
+        @implicitNotFound(ErrorMsg.compositionForAllFailed)
+        evForAllRelevant: CheckForAllMultiplicity[Multiplicity.Relevant, AT, RQT, RQT],
+
+        // ForAll-Affine: no argument used more than once across all returns
+        @implicitNotFound(ErrorMsg.compositionForEachFailed)
+        evForAllAffine: CheckForAllMultiplicity[Multiplicity.Affine, AT, RQT, RQT]
+      ): LinearFnBuilder[M, AT, RQT] with
+        def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT =
+          val argsRefs = args.toArray.map(a => makeRestrictedRef(() => a))
+          val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
+          fns(refsTuple)
+
     /**
      * apply: General-purpose linear function application with configurable multiplicity.
      *
-     * This is a simplified entry point that enforces:
+     * This is a convenience method for applying linear functions with the standard pattern:
+     * 1. Wrap arguments in Restricted types
+     * 2. Call the function
+     * 3. Execute and unwrap the result
+     *
+     * Enforces the built-in connective semantics for plain tuples:
      * - Input multiplicity M (Linear/Affine/Relevant) on consumed state
      * - ForAll-Relevant: all arguments used at least once across all returns
-     * - ForEach-Affine: no argument used more than once per return
+     * - ForAll-Affine: no argument used more than once across all returns
      *
-     * This is equivalent to the old apply with fixed horizontal constraints.
+     * These semantics treat plain tuples as a built-in connective where each argument
+     * is affine and relevant across the ENTIRE tuple (not per-return).
+     * For custom implementations with different semantics, use LinearFnBuilder directly.
      *
      * @tparam M The multiplicity constraint (Linear, Affine, or Relevant)
      * @tparam AT The argument tuple type
@@ -440,19 +489,25 @@ abstract class RestrictedFnBase:
      * @param fns The function from restricted references to return values
      * @return The tuple of executed results
      */
-    def apply[M <: Multiplicity, AT <: Tuple, RQT <: Tuple](
+    def apply[M <: Multiplicity, AT <: Tuple, RT <: Tuple, DT <: Tuple, CT <: Tuple, RQT <: Tuple, CheckCT <: Tuple](
       multiplicity: M
     )(args: AT)(fns: LinearFn[AT, RQT])(
       using
+        ev1: RT =:= ExtractResultTypes[RQT],
+        ev1b: DT =:= ExtractDependencyTypes[RQT],
+        ev1c: CT =:= ExtractConsumedTypes[RQT],
+        ev3: RQT =:= ToRestricted[RT, DT, CT],
+        evCheckCT: CheckCT =:= ExtractConsumedTypesForChecking[RQT, DT],
         @implicitNotFound(ErrorMsg.multiplicityConstraintFailed)
-        evM: CheckMultiplicity[M, ExtractConsumedTypes[RQT]] =:= true,
+        ev2c: CheckMultiplicity[M, CheckCT] =:= true,
         @implicitNotFound(ErrorMsg.compositionForAllFailed)
-        evForAll: CheckForAllRelevant[AT, RQT],
+        evForAllRelevant: ExpectedResult[AT] <:< ActualResult[RQT],
         @implicitNotFound(ErrorMsg.compositionForEachFailed)
-        evForEach: CheckForEachAffine[InverseMapDeps[RQT], RQT]
-    ): ExtractResultTypes[RQT] =
+        evForAllAffine: CheckForAllAffineForMultiplicity[M, AT, RQT] =:= true
+    ): ExtractResultTypes[RQT] = {
       val argsRefs = args.toArray.map(a => makeRestrictedRef(() => a))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
       val exec = fns(refsTuple)
       tupleExecute(exec).asInstanceOf[ExtractResultTypes[RQT]]
+    }
 
