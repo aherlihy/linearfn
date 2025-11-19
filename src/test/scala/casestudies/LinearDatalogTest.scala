@@ -1,8 +1,10 @@
 package test.casestudies
 
-import linearfn.{HorizontalConstraint, RestrictedSelectable, VerticalConstraint}
+import linearfn.{Multiplicity, RestrictedSelectable}
 import munit.FunSuite
 import test.TestUtils
+import test.casestudies.{Query, QueryOps}
+import QueryOps.{given, *}
 import scala.NamedTuple.*
 
 import scala.annotation.experimental
@@ -10,7 +12,6 @@ import scala.annotation.experimental
 type IntRow = (i1: Int, i2: Int)
 
 class LinearDatalogTest extends FunSuite:
-  import QueryOps.*
 
   test("Construct normal query") {
     val q1 = Query.edb[IntRow]("q1")
@@ -36,7 +37,7 @@ class LinearDatalogTest extends FunSuite:
     val r = Query.fixedPoint(q1, q2.union(q3))((a1, a2) =>
       val r1 = a1.union(q3)
       val r2 = a2.map(e => (i1 = e.i1, i2 = e.i2))
-      (r1, r2)
+      Query.compose((r1, r2))
     )
     println(r)
   }
@@ -200,12 +201,12 @@ p24(v2, v7) :- p25(v2, v3), p26(v3, v7), v7 == 10."""
 
     val edges = Query.edb[IntRow]("edges")
     val path = Query.fixedPoint(Tuple1(edges))((p) =>
-      Tuple1(
+      Query.compose(Tuple1(
         p._1.flatMap(p1 =>
           edges.filter(e => p1.i2 == e.i1)
                .map(e => (i1 = p1.i1, i2 = e.i2))
         )
-      )
+      ))
     )(0)
     val datalog = path.peek()
     // Should generate recursive path rules:
@@ -238,7 +239,7 @@ idb0(v10, v11) :- p2(v10, v11)."""
     val nodes = Query.edb[IntRow]("nodes")
 
     val (reachable, visited) = Query.fixedPoint((edges, nodes))((p) =>
-      (
+      Query.compose((
         // reachable: transitive closure of edges (independent of visited)
         p._1.flatMap(r =>
           edges.filter(e => r.i2 == e.i1)
@@ -249,10 +250,8 @@ idb0(v10, v11) :- p2(v10, v11)."""
           nodes.filter(n => v.i2 == n.i1)
                .map(n => (i1 = v.i1, i2 = n.i2))
         )
-      )
-    ) match {
-      case seq => (seq(0), seq(1))
-    }
+      ))
+    )
 
     val datalog = reachable.peek()
     // Both predicates are in the same program, but they are independent
@@ -291,7 +290,7 @@ idb1(v22, v23) :- p6(v22, v23)."""
 
     // Two predicates where second one unions the first
     val (path1, path2) = Query.fixedPoint((edges1, edges2))((p) =>
-      (
+      Query.compose((
         // path1: transitive closure of edges1
         p._1.flatMap(p1 =>
           edges1.filter(e => p1.i2 == e.i1)
@@ -304,10 +303,8 @@ idb1(v22, v23) :- p6(v22, v23)."""
                   .map(e => (i1 = p2.i1, i2 = e.i2))
           )
         )
-      )
-    ) match {
-      case seq => (seq(0), seq(1))
-    }
+      ))
+    )
 
     val datalog = path2.peek()
     // path2 references both idb0 (path1) and idb1 (itself)
@@ -350,7 +347,7 @@ idb1(v26, v27) :- p6(v26, v27)."""
 
     // Two predicates where second one joins with the first
     val (path, labeledPath) = Query.fixedPoint((edges, labels))((p) =>
-      (
+      Query.compose((
         // path: transitive closure of edges
         p._1.flatMap(p1 =>
           edges.filter(e => p1.i2 == e.i1)
@@ -361,10 +358,8 @@ idb1(v26, v27) :- p6(v26, v27)."""
           p._2.filter(l => pth.i2 == l.i1)
               .map(l => (i1 = pth.i1, i2 = l.i2))
         )
-      )
-    ) match {
-      case seq => (seq(0), seq(1))
-    }
+      ))
+    )
 
     val datalog = labeledPath.peek()
     // labeledPath references idb0 (path) and idb1 (itself) via a join
@@ -403,7 +398,7 @@ idb1(v22, v23) :- p6(v22, v23)."""
 
     // Three predicates with complex dependencies
     val (path, reachableNodes, nodeAttrs) = Query.fixedPoint((edges, nodes, attrs))((p) =>
-      (
+      Query.compose((
         // path: transitive closure of edges
         p._1.flatMap(p1 =>
           edges.filter(e => p1.i2 == e.i1)
@@ -419,10 +414,8 @@ idb1(v22, v23) :- p6(v22, v23)."""
           attrs.filter(a => rn.i2 == a.i1)
                .map(a => (i1 = rn.i1, i2 = a.i2))
         ).union(p._3)
-      )
-    ) match {
-      case seq => (seq(0), seq(1), seq(2))
-    }
+      ))
+    )
 
     val datalog = nodeAttrs.peek()
     // All three predicates (idb0, idb1, idb2) are in the program
@@ -477,7 +470,7 @@ idb2(v38, v39) :- p10(v38, v39)."""
 
     // Two mutually recursive predicates
     val (forward, backward) = Query.fixedPoint((edges, revEdges))((p) =>
-      (
+      Query.compose((
         // forward: uses both forward and backward paths
         p._1.flatMap(f =>
           edges.filter(e => f.i2 == e.i1)
@@ -498,10 +491,8 @@ idb2(v38, v39) :- p10(v38, v39)."""
                     .map(e => (i1 = f.i1, i2 = e.i2))
           )
         )
-      )
-    ) match {
-      case seq => (seq(0), seq(1))
-    }
+      ))
+    )
 
     val datalog = forward.peek()
     // Both predicates reference each other (mutual recursion)
@@ -545,4 +536,140 @@ p10(v40, v41) :- p14(v40, v41).
 idb1(v42, v43) :- p9(v42, v43).
 idb1(v42, v43) :- p10(v42, v43)."""
     assertEquals(datalog, expected)
+  }
+
+  // ============================================================================
+  // NEGATIVE TESTS: These should fail to compile
+  //
+  // These tests verify that the type system catches violations of:
+  // 1. ForEach-Affine: Each argument used at most once per return value
+  // 2. ForAll-Relevant: Each argument used at least once across all returns
+  //
+  // Note: Wrong tuple sizes and type mismatches are also caught by these
+  // multiplicity constraints, as they manifest as shape/usage violations.
+  // ============================================================================
+
+  test("NEGATIVE: too few returns - violates fixedPoint constraints") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+
+      // Should fail: 2 arguments but only 1 return
+      val r = Query.fixedPoint((q1, q2))((a1, a2) =>
+        Query.compose(Tuple1(a1.union(a2)))  // Has both dependencies, but only 1 return
+      )
+    """)
+    assert(obtained.contains(TestUtils.fixedPointReturnLengthFailed), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: too many returns - violates fixedPoint constraints") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+      import linearfn.RestrictedSelectable.Restricted
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+      val q3 = Query.edb[IntRow]("q3")
+
+      // Should fail: 2 arguments but 3 returns
+      // All arguments are used (ForAll-Relevant satisfied)
+      // No argument used twice per return (ForEach-Affine satisfied)
+      val r = Query.fixedPoint((q1, q2))((a1, a2) =>
+        val q3Const: Restricted[Query[IntRow], EmptyTuple, EmptyTuple] = q3
+        Query.compose((a1, a2, q3Const))  // 3 returns from 2 args - wrong tuple size!
+      )
+    """)
+    assert(obtained.contains(TestUtils.fixedPointReturnLengthFailed), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: wrong wrapped types") {
+    val obtained = compileErrors(
+      """
+      import QueryOps.*
+
+      val q1 = Query.edb[(k1: Int)]("q1")
+      val q2 = Query.edb[(k1: String)]("q2")
+
+      val r = Query.fixedPoint((q1, q2))((a1, a2) =>
+        Query.compose((a2, a1))  // Has both dependencies but wrong order
+      )
+    """)
+    assert(obtained.contains(TestUtils.fixedPointReturnTypesFailed), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: ForEach-Affine - using argument twice in same return") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+
+      // Should fail: p._1 appears twice in the first return value (union with itself)
+      val r = Query.fixedPoint((q1, q2))((p) =>
+        Query.compose((
+          p._1.union(p._1),  // VIOLATION: p._1 used twice in same return!
+          p._2
+        ))
+      )
+    """)
+    assert(obtained.contains("CheckForEachMultiplicity"), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: ForEach-Affine - using argument twice via intermediate") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+
+      // Should fail: p._1 appears twice in the first return value
+      val r = Query.fixedPoint((q1, q2))((p) =>
+        val temp = p._1  // intermediate reference
+        Query.compose((
+          temp.union(p._1),  // VIOLATION: p._1 used twice (via temp and directly)
+          p._2
+        ))
+      )
+    """)
+    assert(obtained.contains("CheckForEachMultiplicity"), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: ForAll-Relevant - forgetting to use an argument") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+      val q3 = Query.edb[IntRow]("q3")
+
+      // Should fail: p._2 is never used in any return value
+      val r = Query.fixedPoint((q1, q2))((p) =>
+        Query.compose((
+          p._1,
+          q3  // VIOLATION: Using q3 instead of p._2, so p._2 is unused!
+        ))
+      )
+    """)
+    assert(obtained.contains("CheckForAllMultiplicity"), s"obtained: $obtained")
+  }
+
+  test("NEGATIVE: ForAll-Relevant - using external query instead") {
+    val obtained = compileErrors("""
+      import QueryOps.*
+
+      val q1 = Query.edb[IntRow]("q1")
+      val q2 = Query.edb[IntRow]("q2")
+      val external = Query.edb[IntRow]("external")
+
+      // Should fail: both arguments use external instead, so both p._1 and p._2 are unused
+      val r = Query.fixedPoint((q1, q2))((p) =>
+        Query.compose((
+          external,  // VIOLATION: should use p._1
+          external   // VIOLATION: should use p._2
+        ))
+      )
+    """)
+    assert(obtained.contains("CheckForAllMultiplicity"), s"obtained: $obtained")
   }

@@ -4,58 +4,39 @@ import Utils.*
 import scala.annotation.implicitNotFound
 
 // ============================================================================
-// Constraint Type Definitions for customApply
+// Multiplicity Type Definitions
 // ============================================================================
 
 /**
- * Vertical linearity constraints - track consumption state through method chains
+ * Multiplicity constraints - track how many times a value can be consumed
  */
-sealed trait VerticalConstraint
-object VerticalConstraint:
-  /** C must have length = 1 (consumed exactly once) */
-  case object Linear extends VerticalConstraint
-  /** C must have length ≤ 1 (consumed at most once) */
-  case object Affine extends VerticalConstraint
-  /** C must have length ≥ 1 (consumed at least once) */
-  case object Relevant extends VerticalConstraint
+sealed trait Multiplicity
+object Multiplicity:
+  /** Must be consumed exactly once */
+  sealed trait Linear extends Multiplicity
+  /** Can be consumed at most once */
+  sealed trait Affine extends Multiplicity
+  /** Must be consumed at least once */
+  sealed trait Relevant extends Multiplicity
+
+  // Witness objects for explicit multiplicity selection
+  object Linear extends Linear
+  object Affine extends Affine
+  object Relevant extends Relevant
+
+// ============================================================================
+// Custom Connective Type Definitions
+// ============================================================================
 
 /**
- * Horizontal linearity constraints - track argument distribution across returns
- * Each combines two orthogonal checks (ForAll/ForEach + Affine/Relevant)
+ * Base trait for all custom connectives.
+ * A connective composes multiple Restricted values with specific multiplicity constraints.
+ *
+ * @tparam ForEachM - Multiplicity constraint applied to each individual return value
+ * @tparam ForAllM - Multiplicity constraint applied across all return values
  */
-sealed trait HorizontalConstraint
-object HorizontalConstraint:
-  /**
-   * For-all-relevant + For-each-affine (current default)
-   * - Each arg appears ≥1 times across all returns
-   * - Each arg appears ≤1 time per return
-   * Example: (a, b) → (a, b, a) ✓
-   */
-  case object ForAllRelevantForEachAffine extends HorizontalConstraint
-
-  /**
-   * For-all-relevant + For-all-affine (traditional linear types)
-   * - Each arg appears ≥1 times across all returns
-   * - Each arg appears ≤1 time total
-   * Example: (a, b) → (a, b) ✓, (a, b) → (a, b, a) ✗
-   */
-  case object ForAllRelevantForAllAffine extends HorizontalConstraint
-
-  /**
-   * For-each-relevant + For-each-affine (uniform recursion)
-   * - Each arg appears ≥1 times in every return
-   * - Each arg appears ≤1 time per return
-   * Example: (a, b) → (a+b, a+b) ✓, (a, b) → (a, b) ✗
-   */
-  case object ForEachRelevantForEachAffine extends HorizontalConstraint
-
-  /**
-   * For-each-relevant + For-all-affine (impractical - only 1 return)
-   * - Each arg appears ≥1 times in every return
-   * - Each arg appears ≤1 time total
-   * Example: Only works with single return value
-   */
-  case object ForEachRelevantForAllAffine extends HorizontalConstraint
+trait CustomConnective[ForEachM <: Multiplicity, ForAllM <: Multiplicity]:
+  type Composed
 
 /**
  * Abstract base for all RestrictedFn implementations.
@@ -97,6 +78,22 @@ abstract class RestrictedFnBase:
   // All implementations must extend RestrictedBase
   type Restricted[A, D <: Tuple, C <: Tuple] <: RestrictedBase[A, D, C]
 
+  /**
+   * ComposedConnective: The result of composing Restricted values with a CustomConnective.
+   * This is what gets returned from connective.compose().
+   * Always has Consumed = Tuple1[true] (must be consumed)
+   */
+  case class ComposedConnective[
+    RT <: Tuple,
+    DT <: Tuple,
+    ForEachM <: Multiplicity,
+    ForAllM <: Multiplicity
+  ](
+    values: RT
+  ) extends RestrictedBase[Tuple, DT, Tuple1[true]]:
+    def execute(): Tuple =
+      tupleExecute(values)
+
   // Factory method for creating RestrictedRef instances
   protected def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C]
 
@@ -109,6 +106,7 @@ abstract class RestrictedFnBase:
   // This is the PRIMARY place to add new container types for lifting support
   type LiftInnerType[T] = T match
     case Restricted[a, d, c] => (a, d, c)
+    case ComposedConnective[rt, dt, forEachM, forAllM] => (Tuple, dt, Tuple1[true])
     case List[inner] => LiftInnerType[inner] match
       case (a, d, c) => (List[a], d, c)
     case Option[inner] => LiftInnerType[inner] match
@@ -237,7 +235,7 @@ abstract class RestrictedFnBase:
       case _ => false
 
   // RELEVANT CONSTRAINT: Check that all consumption states are consumed at least once (length ≥ 1)
-  // Used by customApply with VerticalConstraint.Relevant
+  // Used by customApply with Multiplicity.Relevant
   // C must have length ≥ 1
   type AllConsumedStatesAtLeastOne[CT <: Tuple] <: Boolean = CT match
     case EmptyTuple => true
@@ -249,11 +247,11 @@ abstract class RestrictedFnBase:
   // Constraint Checking for customApply
   // ============================================================================
 
-  // Check vertical constraint satisfaction based on VerticalConstraint type
-  type CheckVerticalConstraint[VC <: VerticalConstraint, CT <: Tuple] <: Boolean = VC match
-    case VerticalConstraint.Linear.type => AllConsumedStatesExactlyOne[CT]
-    case VerticalConstraint.Affine.type => AllConsumedStatesAtMostOne[CT]
-    case VerticalConstraint.Relevant.type => AllConsumedStatesAtLeastOne[CT]
+  // Check multiplicity constraint satisfaction based on Multiplicity type
+  type CheckMultiplicity[M <: Multiplicity, CT <: Tuple] <: Boolean = M match
+    case Multiplicity.Linear => AllConsumedStatesExactlyOne[CT]
+    case Multiplicity.Affine => AllConsumedStatesAtMostOne[CT]
+    case Multiplicity.Relevant => AllConsumedStatesAtLeastOne[CT]
 
   // Check strict constraint (n args → n returns with same types)
   type CheckStrictConstraint[Strict <: Boolean, AT <: Tuple, RT <: Tuple] = Strict match
@@ -333,37 +331,33 @@ abstract class RestrictedFnBase:
     case Elem *: _ => true
     case _ *: tail => Contains[Elem, tail]
 
-  // Check first component of horizontal constraint (Relevant check)
-  type CheckHorizontalRelevant[
-    HC <: HorizontalConstraint,
+  // Check ForAll multiplicity constraint (across all returns)
+  type CheckForAllMultiplicity[
+    ForAllM <: Multiplicity,
     AT <: Tuple,
     RT <: Tuple,
     RQT <: Tuple
-  ] = HC match
-    case HorizontalConstraint.ForAllRelevantForEachAffine.type =>
-      CheckForAllRelevant[AT, RQT]
-    case HorizontalConstraint.ForAllRelevantForAllAffine.type =>
-      CheckForAllRelevant[AT, RQT]
-    case HorizontalConstraint.ForEachRelevantForEachAffine.type =>
-      CheckForEachRelevant[AT, RT]
-    case HorizontalConstraint.ForEachRelevantForAllAffine.type =>
-      CheckForEachRelevant[AT, RT]
+  ] = ForAllM match
+    case Multiplicity.Linear => CheckForAllRelevant[AT, RQT]  // Must appear exactly once total (=relevant + affine)
+    case Multiplicity.Affine => CheckForAllAffine[AT, RQT]    // Can appear at most once total
+    case Multiplicity.Relevant => CheckForAllRelevant[AT, RQT] // Must appear at least once total
 
-  // Check second component of horizontal constraint (Affine check)
-  type CheckHorizontalAffine[
-    HC <: HorizontalConstraint,
+  // Check ForEach multiplicity constraint (per individual return)
+  type CheckForEachMultiplicity[
+    ForEachM <: Multiplicity,
     AT <: Tuple,
     DT <: Tuple,
+    RT <: Tuple,
     RQT <: Tuple
-  ] = HC match
-    case HorizontalConstraint.ForAllRelevantForEachAffine.type =>
-      CheckForEachAffine[DT, RQT]
-    case HorizontalConstraint.ForAllRelevantForAllAffine.type =>
-      CheckForAllAffine[AT, RQT]
-    case HorizontalConstraint.ForEachRelevantForEachAffine.type =>
-      CheckForEachAffine[DT, RQT]
-    case HorizontalConstraint.ForEachRelevantForAllAffine.type =>
-      CheckForAllAffine[AT, RQT]
+  ] = ForEachM match
+    case Multiplicity.Linear => CheckForEachLinear[AT, DT, RT, RQT]  // Each return: exactly once (relevant + affine)
+    case Multiplicity.Affine => CheckForEachAffine[DT, RQT]          // Each return: at most once
+    case Multiplicity.Relevant => CheckForEachRelevant[AT, RT]       // Each return: at least once
+
+  // Helper: Check for-each-linear (each arg in every return, no duplicates per return)
+  // This is the conjunction of for-each-relevant AND for-each-affine
+  type CheckForEachLinear[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple] =
+    (CheckForEachRelevant[AT, RT], CheckForEachAffine[DT, RQT])
 
   // ============================================================================
   // RestrictedFn Methods: Combining Vertical and Horizontal Constraints
@@ -383,249 +377,82 @@ abstract class RestrictedFnBase:
       tupleExecute(exec).asInstanceOf[RT]
 
     /**
-     * customApply - Fully customizable substructural constraint function with user-specified constraints.
-     *
-     * Allows users to specify:
-     * - Vertical constraint (Linear/Affine/Relevant)
-     * - Horizontal constraint (one of 4 pre-defined combinations)
-     *
-     * This method does NOT enforce strict size checking (n args = n returns).
-     * Use `strictApply` if you need size and argument/return type constraints.
-     *
-     * Usage:
-     * {{{
-     * RestrictedFn.customApply(
-     *   (vertical = VerticalConstraint.Affine,
-     *    horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
-     * )((a, b))(refs => (refs._1, refs._2, refs._1))  // 3 returns from 2 args OK
-     * }}}
-     */
-    def customApply[
-      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
-      VC <: VerticalConstraint,
-      HC <: HorizontalConstraint
-    ](
-      options: (vertical: VC, horizontal: HC)
-    )(args: AT)(fns: ToRestrictedRef[AT] => RQT)(
-      using
-        // Basic type extraction evidences
-        @implicitNotFound(ErrorMsg.invalidResultTypes)
-        ev1: RT =:= ExtractResultTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
-        ev1c: CT =:= ExtractConsumedTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
-        ev3: RQT =:= ToRestricted[RT, DT, CT],
-
-        // Vertical constraint evidence
-        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-        evV: CheckVerticalConstraint[VC, CT] =:= true,
-
-        // Horizontal constraint evidences (two separate checks)
-        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
-
-        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
-    ): RT = applyImpl[AT, RT, RQT](args)(fns)
-
-    /**
-     * customLinearFn - Like customApply but with reversed argument order for currying.
-     *
-     * Takes the function first, then the arguments. This allows partial application
-     * with just the function, creating a curried linear function that can be passed around.
-     *
-     * Usage:
-     * {{{
-     * val f = RestrictedFn.customLinearFn(
-     *   (vertical = VerticalConstraint.Affine,
-     *    horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
-     * )(refs => (refs._1, refs._2))
-     *
-     * // f is now a function that takes arguments and returns results
-     * val result = f((a, b))
-     * }}}
-     */
-    def customLinearFn[
-      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
-      VC <: VerticalConstraint,
-      HC <: HorizontalConstraint
-    ](
-      options: (vertical: VC, horizontal: HC)
-    )(fns: ToRestrictedRef[AT] => RQT)(
-      using
-        // Basic type extraction evidences
-        @implicitNotFound(ErrorMsg.invalidResultTypes)
-        ev1: RT =:= ExtractResultTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
-        ev1c: CT =:= ExtractConsumedTypes[RQT],
-
-        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
-        ev3: RQT =:= ToRestricted[RT, DT, CT],
-
-        // Vertical constraint evidence
-        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-        evV: CheckVerticalConstraint[VC, CT] =:= true,
-
-        // Horizontal constraint evidences (two separate checks)
-        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HC, AT, RT, RQT],
-
-        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
-    ): AT => RT =
-      (args: AT) => applyImpl[AT, RT, RQT](args)(fns)
-
-
-    def strictLinearFn[
-      AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple,
-    ](fns: ToRestrictedRef[AT] => RQT)(
-       using
-       // Basic type extraction evidences
-       @implicitNotFound(ErrorMsg.invalidResultTypes)
-       ev1: RT =:= ExtractResultTypes[RQT],
-
-       @implicitNotFound(ErrorMsg.invalidDependencyTypes)
-       ev1b: DT =:= ExtractDependencyTypes[RQT],
-
-       @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
-       ev1c: CT =:= ExtractConsumedTypes[RQT],
-
-       @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
-       ev3: RQT =:= ToRestricted[RT, DT, CT],
-
-       // Vertical constraint evidence
-       @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-       evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
-
-       // Horizontal constraint evidences (two separate checks)
-       @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-       evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
-
-       @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-       evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT]
-     ): AT => RT =
-      (args: AT) => applyImpl[AT, RT, RQT](args)(fns)
-
-    /**
-     * apply - Convenience method for the default linear function behavior.
-     *
-     * VERTICAL (Consumption): AFFINE - allows unconsumed values (at most once consumed)
-     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE
-     * STRICT: false - allows any number of return values
-     *
-     * This is the standard apply method. It allows flexible return counts while enforcing
-     * that all arguments are used and each argument appears at most once per return.
-     *
-     * Usage:
-     * {{{
-     * RestrictedFn.apply((a, b))(refs => (refs._1, refs._2, refs._1))  // 3 returns from 2 args OK
-     * }}}
-     */
-    def apply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)(fns: ToRestrictedRef[AT] => RQT)(
-      using
-        ev1: RT =:= ExtractResultTypes[RQT],
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-        ev1c: CT =:= ExtractConsumedTypes[RQT],
-        ev3: RQT =:= ToRestricted[RT, DT, CT],
-
-        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-        evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
-
-        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
-
-        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-        evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT]
-    ): RT = applyImpl[AT, RT, RQT](args)(fns)
-
-    /**
-     * strictApply - Convenience method for strict linear functions (n args → n returns).
-     *
-     * VERTICAL (Consumption): AFFINE - allows unconsumed values (at most once)
-     * HORIZONTAL (Dependencies): FOR-ALL-RELEVANT + FOR-EACH-AFFINE
-     * STRICT: true - requires n arguments → n returns with same number
-     *
-     * This matches the original `apply` behavior and is useful when you want to enforce
-     * that the number of returns matches the number of arguments.
-     *
-     * Usage:
-     * {{{
-     * RestrictedFn.strictApply((a, b))(refs => (refs._1, refs._2))  // Must be 2 args → 2 returns
-     * }}}
-     */
-    def strictApply[AT <: Tuple, DT <: Tuple, CT <: Tuple, RT <: Tuple, RQT <: Tuple]
-    (args: AT)(fns: ToRestrictedRef[AT] => RQT)(
-      using
-        ev1: RT =:= ExtractResultTypes[RQT],
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-        ev1c: CT =:= ExtractConsumedTypes[RQT],
-        ev3: RQT =:= ToRestricted[RT, DT, CT],
-
-        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-        evV: CheckVerticalConstraint[VerticalConstraint.Affine.type, CT] =:= true,
-
-        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, RT, RQT],
-
-        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-        evHA: CheckHorizontalAffine[HorizontalConstraint.ForAllRelevantForEachAffine.type, AT, DT, RQT],
-
-        @implicitNotFound(ErrorMsg.strictFnFailed)
-        evStrict: CheckStrictConstraint[true, AT, RT]
-    ): RT = applyImpl[AT, RT, RQT](args)(fns)
-
-    /**
      * LinearFn: A type alias for linear functions.
      *
      * This is the library's contribution - a clean name for linear functions
-     * that take restricted references and return restricted values.
+     * that take restricted references and return a ComposedConnective.
      */
-    type LinearFn[AT <: Tuple, RQT <: Tuple] = ToRestrictedRef[AT] => RQT
+    type LinearFn[AT <: Tuple, RQT] = ToRestrictedRef[AT] => RQT
 
     /**
-     * LinearFnBuilder: Encodes base linearity constraints.
+     * LinearFnBuilder: Encodes base linearity constraints with custom connectives.
      *
      * User code requests a builder via `using`, and the given instance
      * will be found IFF all base linearity constraints are satisfied.
      *
-     * The builder returns RQT (the restricted tuple) - user code decides
-     * what to do with it (unwrap it, use it directly, etc).
+     * RQT must be a ComposedConnective that defines the composition strategy.
      */
     @implicitNotFound(ErrorMsg.substructuralContstraintFailed)
-    trait LinearFnBuilder[VC <: VerticalConstraint, HC <: HorizontalConstraint, AT <: Tuple, RQT <: Tuple]:
+    trait LinearFnBuilder[M <: Multiplicity, AT <: Tuple, RQT]:
       def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT
 
     object LinearFnBuilder:
-      given builder[
-        VC <: VerticalConstraint, HC <: HorizontalConstraint,
-        AT <: Tuple, DT <: Tuple, CT <: Tuple, RQT <: Tuple
+      // Builder for ComposedConnective - the only supported return type
+      // This enforces all constraints: input multiplicity, ForAll, and ForEach
+      given connectiveBuilder[
+        M <: Multiplicity,
+        AT <: Tuple,
+        RT <: Tuple,
+        DT <: Tuple,
+        ForEachM <: Multiplicity,
+        ForAllM <: Multiplicity
       ](using
-        // ALL base linearity constraints defined in the library
-        @implicitNotFound(ErrorMsg.invalidResultTypes)
-        ev1: ExtractResultTypes[RQT] =:= ExtractResultTypes[RQT],
-        @implicitNotFound(ErrorMsg.invalidDependencyTypes)
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-        @implicitNotFound(ErrorMsg.invalidConsumptionTypes)
-        ev1c: CT =:= ExtractConsumedTypes[RQT],
-        @implicitNotFound(ErrorMsg.invalidRestrictedTypes)
-        ev3: RQT =:= ToRestricted[ExtractResultTypes[RQT], DT, CT],
-        @implicitNotFound(ErrorMsg.verticalConstraintFailed)
-        evV: CheckVerticalConstraint[VC, CT] =:= true,
-        @implicitNotFound(ErrorMsg.horizontalRelevanceFailed)
-        evHR: CheckHorizontalRelevant[HC, AT, ExtractResultTypes[RQT], RQT],
-        @implicitNotFound(ErrorMsg.horizontalAffineFailed)
-        evHA: CheckHorizontalAffine[HC, AT, DT, RQT]
-      ): LinearFnBuilder[VC, HC, AT, RQT] with
-        def execute(args: AT)(fns: LinearFn[AT, RQT]): RQT =
-          applyImpl[AT, ExtractResultTypes[RQT], RQT](args)(fns).asInstanceOf[RQT]
+        // Input multiplicity constraint (on arguments)
+        @implicitNotFound(ErrorMsg.multiplicityConstraintFailed)
+        evM: CheckMultiplicity[M, Tuple.Map[RT, [_] =>> Tuple1[true]]] =:= true,
+
+        // Connective multiplicity constraints
+        @implicitNotFound(ErrorMsg.compositionForAllFailed)
+        evForAll: CheckForAllMultiplicity[ForAllM, AT, RT, RT],
+
+        @implicitNotFound(ErrorMsg.compositionForEachFailed)
+        evForEach: CheckForEachMultiplicity[ForEachM, AT, DT, RT, RT]
+      ): LinearFnBuilder[M, AT, ComposedConnective[RT, DT, ForEachM, ForAllM]] with
+        def execute(args: AT)(fns: LinearFn[AT, ComposedConnective[RT, DT, ForEachM, ForAllM]]): ComposedConnective[RT, DT, ForEachM, ForAllM] =
+          val argsRefs = (0 until args.size).map(i => makeRestrictedRef(() => args.productElement(i).asInstanceOf[Any])).toArray
+          val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
+          fns(refsTuple)
+
+    /**
+     * apply: General-purpose linear function application with configurable multiplicity.
+     *
+     * This is a simplified entry point that enforces:
+     * - Input multiplicity M (Linear/Affine/Relevant) on consumed state
+     * - ForAll-Relevant: all arguments used at least once across all returns
+     * - ForEach-Affine: no argument used more than once per return
+     *
+     * This is equivalent to the old apply with fixed horizontal constraints.
+     *
+     * @tparam M The multiplicity constraint (Linear, Affine, or Relevant)
+     * @tparam AT The argument tuple type
+     * @tparam RQT The return type (tuple of Restricted values)
+     * @param args The argument tuple
+     * @param fns The function from restricted references to return values
+     * @return The tuple of executed results
+     */
+    def apply[M <: Multiplicity, AT <: Tuple, RQT <: Tuple](
+      multiplicity: M
+    )(args: AT)(fns: LinearFn[AT, RQT])(
+      using
+        @implicitNotFound(ErrorMsg.multiplicityConstraintFailed)
+        evM: CheckMultiplicity[M, ExtractConsumedTypes[RQT]] =:= true,
+        @implicitNotFound(ErrorMsg.compositionForAllFailed)
+        evForAll: CheckForAllRelevant[AT, RQT],
+        @implicitNotFound(ErrorMsg.compositionForEachFailed)
+        evForEach: CheckForEachAffine[InverseMapDeps[RQT], RQT]
+    ): ExtractResultTypes[RQT] =
+      val argsRefs = args.toArray.map(a => makeRestrictedRef(() => a))
+      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
+      val exec = fns(refsTuple)
+      tupleExecute(exec).asInstanceOf[ExtractResultTypes[RQT]]
 
