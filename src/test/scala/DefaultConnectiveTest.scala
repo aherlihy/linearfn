@@ -19,7 +19,7 @@ class DefaultConnectiveTest extends FunSuite:
   // Tests for ForAll-Affine + ForAll-Relevant semantics
   // ============================================================================
 
-  test("General affine: all arguments can be used") {
+  test("General affine: all arguments returned in tuple") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -30,7 +30,7 @@ class DefaultConnectiveTest extends FunSuite:
     assertEquals(result._1.name, "a")
     assertEquals(result._2.name, "b")
   }
-  test("General affine: fewer arguments but unified ok") {
+  test("General affine: all arguments returned in tuple length < args") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -40,7 +40,7 @@ class DefaultConnectiveTest extends FunSuite:
 
     assertEquals(result._1.name, "a & b")
   }
-  test("General affine: more arguments but unified ok") {
+  test("General affine: all arguments returned in tuple length > args (conversion for extra arg)") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -76,7 +76,7 @@ class DefaultConnectiveTest extends FunSuite:
     )
   }
 
-  test("General linear: all arguments can be used") {
+  test("General linear: all arguments returned in tuple") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -87,7 +87,7 @@ class DefaultConnectiveTest extends FunSuite:
     assertEquals(result._1.name, "a")
     assertEquals(result._2.name, "b")
   }
-  test("General linear: fewer arguments but unified ok") {
+  test("General linear: all arguments returned in tuple length < args") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -97,7 +97,7 @@ class DefaultConnectiveTest extends FunSuite:
 
     assertEquals(result._1.name, "a & b")
   }
-  test("General linear: more arguments but unified ok") {
+  test("General linear: all arguments returned in tuple length > args (conversion for extra arg)") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -151,7 +151,7 @@ class DefaultConnectiveTest extends FunSuite:
     )
   }
 
-  test("General relevant: all arguments can be used") {
+  test("General relevant: all arguments returned in tuple") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -162,7 +162,7 @@ class DefaultConnectiveTest extends FunSuite:
     assertEquals(result._1.name, "a")
     assertEquals(result._2.name, "b")
   }
-  test("General relevant: fewer arguments but unified ok") {
+  test("General relevant: all arguments returned in tuple length < args") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
@@ -172,7 +172,7 @@ class DefaultConnectiveTest extends FunSuite:
 
     assertEquals(result._1.name, "a & b")
   }
-  test("General relevant: more arguments but unified ok") {
+  test("General relevant: all arguments returned in tuple length > args (conversion for extra arg)") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 

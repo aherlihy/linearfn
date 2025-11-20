@@ -157,9 +157,9 @@ object Query:
         QT,
         DatalogConnective[RT, DT]
       ],
-      @implicitNotFound("fixedPoint requires same number of arguments and returns")
+      @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnLengthFailed)
       evStrict: Tuple.Size[RT] =:= Tuple.Size[QT],
-      @implicitNotFound("fixedPoint requires return types to match argument types")
+      @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnTypesFailed)
       evReturnTypes: ExtractQueryRowTypes[RestrictedSelectable.ExtractResultTypes[RT]] =:= ExtractQueryRowTypes[QT]
   ): QT = {
     val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))
