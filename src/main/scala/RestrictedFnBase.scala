@@ -212,7 +212,7 @@ abstract class RestrictedFnBase:
     case (false, false) => true
 
   // ============================================================================
-  // Top-level constraint checks
+  // Top-level constraint checks with error messages
   // ============================================================================
 
   // Given instance for true - used when Unrestricted multiplicity bypasses constraints
@@ -225,14 +225,13 @@ abstract class RestrictedFnBase:
   given emptyTupleEvidence: EmptyTuple = EmptyTuple
   given consTupleEvidence[H, T <: Tuple](using H, T): (H *: T) = summon[H] *: summon[T]
 
-  // Check ForAll multiplicity constraint (across all returns)
+  // Just use the check types directly without wrappers
   type CheckForAllMultiplicity[
     ForAllM <: Multiplicity,
     AT <: Tuple,
     RQT <: Tuple
   ] = CheckForAll[ForAllM, AT, RQT]
 
-  // Check ForEach multiplicity constraint (per individual return)
   type CheckForEachMultiplicity[
     ForEachM <: Multiplicity,
     AT <: Tuple,

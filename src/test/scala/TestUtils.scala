@@ -14,4 +14,9 @@ object TestUtils:
   val missingField = "is not a member of"
   val otherError = "match type could not be fully reduced"
   val noGivenInstance = "No given instance of type"
+  val forAll = "ForAll"
+  val forEach = "ForEach"
+  val affine = "Affine"
+  val relevant = "Relevant"
+  val linear = "Linear"
 

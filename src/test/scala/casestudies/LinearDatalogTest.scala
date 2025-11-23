@@ -653,7 +653,7 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForAll"), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.forAll) && obtained.contains(TestUtils.relevant), s"obtained: $obtained")
   }
 
   test("NEGATIVE: ForAll-Relevant - using external query instead") {
@@ -672,5 +672,5 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForAll"), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.forAll) && obtained.contains(TestUtils.relevant), s"obtained: $obtained")
   }
