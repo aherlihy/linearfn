@@ -1,4 +1,4 @@
-# RestrictedFn - Parametric Substructural Constraints in Scala 3
+# RestrictedFn - Modular Substructural Constraints in Scala 3
 
 A Scala 3 library for enforcing flexible substructural constraints at compile time at the function level without modifying the compiler
 itself, using type-level programming with Match, Tuple, and Union types, and staging.
@@ -8,39 +8,9 @@ specific use-case and defines a clear API for declaring function behavior.
 The techniques are designed for writing embedded DSLs in host programming languages with side effects, like Scala.
 Example case studies are located in `test/casestudies`.
 
-## Substructural Constraints 
+## Substructural Constraints
 
-This library provides a `restrictedFn` library function that enforces the substructural constraints specified by the user.
-
-1. **Traditional substructural types**: 
-    Users pass the desired multiplicity (linear, affine, relevant) to `restrictedFn` and declare the types of the 
-    function parameters using the `@ops` annotation. The library enforces the specified constraints at compile time
-    within the region of the function body.
-    The definition of "use" is also customizable by the user on a per-method basis: the default behavior of methods of 
-    types declared with `@ops` is equivalent to the `@consumed` annotation, indicating that a method consumes or "uses"
-    the receiver.
-    Within the scope of a `restrictedFn`, a `@consumed` method may be called according to the multiplicity level specified by the user.
-    This is the classical understanding of "use" of a value within a region (the function body),
-    useful for resource management (file handles must be closed exactly once, transactions must be committed or rolled 
-    back exactly once, etc.). Users can also customize methods as `@repeatable` (receiver must be unconsumed, but does 
-    not consume the receiver, for example `read` on a socket); or `@unconsumed` (receiver can be unconsumed or consumed, does 
-    not change consumption state, useful for debugging or helper methods). 
-
-2. **Custom products**: 
-    Users can customize the "combination" or product operation of restricted types. 
-    Traditionally, methods of restricted types that are passed other 
-    restricted types are seen as strict products, e.g., for restricted types `a`, `b`, `a + b` would be the product of `a` and `b`.
-    However, in some DSLs, users may want to define custom combination operations, e.g., for merging database queries or combining file handles.
-    Parameters of methods of argument types can be declared as 
-    `@restricted` (default behavior), `@unrestricted` (do not restrict parameter), or `@restrictedReturn` (for function parameters, only track return type,
-    useful for higher-order-functions).
-   For functions with _n_ arguments and _m_ return values,
-   each argument flows through the function to the return values. Users can specify constraints for _each_ return-value,
-   allowing for more flexible constraints that are not possible with traditional substructural type systems, or
-   for _all_ return values. For example, a user may want to enforce that each argument is used at least once across all return values (affine),
-   but at most once in each individual return value (relevant).
-
-### Relationship to Substructural Type Systems
+This library provides a `RestrictedFn` function that enforces substructural constraints specified by the user through custom tensors (connectives).
 
 **Substructural Type Systems** restrict the structural rules of logic (weakening, contraction, exchange):
 - **Linear types**: Use exactly once (no weakening, no contraction)
@@ -49,101 +19,83 @@ This library provides a `restrictedFn` library function that enforces the substr
 
 **Our Implementation:**
 
-1. **C Parameter = Defines constraints on a single value**
-   - Models resource lifecycle with two states: unconsumed and consumed
-   - Default methods consume the receiver
-   - `@repeatable` methods allow multiple uses
-   - `@unconsumed` methods preserve state
+Users can define custom tensors using `ComposedConnective` that combine two orthogonal dimensions of constraints:
+- **ForAll**: Applied across all return values collectively
+- **ForEach**: Applied to each return value individually
 
-2. **D Parameter = Defines constraints on combinations of multiple values**
-   - Per-return-value constraints
-   - For-all-return-values constraints
-   - `@restricted` parameters (default) track full parameter
-   - `@unrestricted` parameters do not track parameter
-   - `@restrictedReturn` parameters track return type only (for higher-order functions)
-     
-    | Combination | What It Allows                                                      | Example Valid______________                                  | Example Invalid                                                                    | Use Case                                                                                                                  |
-     |-------------|---------------------------------------------------------------------|--------------------------------------------------------------|------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
-     | **For-all-relevant +<br>For-each-affine**<br> | Each arg appears ≥1 times across all returns,<br>≤1 time per return | `(a, b) → (a, b)`<br>`(a, b) → a + b`<br>`(a, b) → (a+b, a)` | `(a, b) → (a, a)` (not relevant)<br>`(a, b) → (a+a, b)` (not affine)               | DSL that models linear structural recursion.<br>Allows mutually-recursive programs while preventing non-linear recursion. |
-     | **For-all-relevant +<br>For-all-affine** | Each arg appears ≥1 times across all returns,<br>≤1 time per return | `(a, b) → (a, b)`<br>`(a, b) → (b, a)`<br>`(a, b) → (a+b, x)` | `(a, b) → (a, b, a)` (not affine) <br>`(a, b) → (a, a)` (not relevant)             | TODO: Traditional linear types for multi-return functions.                                                                |
-     | **For-each-relevant +<br>For-each-affine** | Each arg appears ≥1 times in every return,<br>≤1 time per return    | `(a, b) → (a+b, a+b)` <br/>`(a, b)→ a + b` | `(a, b) → (a, b)` (not relevant)<br>`(a, b) → (a+a, b+b)` (not affine)             | TODO                                                                                                                      |
-     | **For-each-relevant +<br>For-all-affine** | Each arg appears ≥1 times in every return,<br>≤1 time total         | `(a) → (a)`<br>`(a, b) → (a+b)`                              | `(a, b) → (a, b)` (a in 1st and 2nd)<br>`(a, b) → (a+b, a+b)` (a,b in 1st and 2nd) | TODO: Requires the function to have only a single return value that uses all parameters once.                             |
+Each dimension can have a multiplicity constraint:
+- `Multiplicity.Linear`: Use exactly once
+- `Multiplicity.Affine`: Use at most once
+- `Multiplicity.Relevant`: Use at least once
+- `Multiplicity.Unrestricted`: No restrictions
 
-**Key Insights:**
+For functions with _n_ arguments and _m_ return values, each argument flows through the function to the return values. Users can specify constraints for each return value (ForEach), for all return values collectively (ForAll), or a combination of both. This allows for more flexible constraints than traditional substructural type systems.
 
-1. **For-all-relevant + For-each-affine** (current) is the most flexible:
-    - Allows multiple return values of varying structure
-    - Each argument must be used somewhere (ensures linearity)
-    - No duplicate use within a single return (prevents aliasing)
-    - Example: fixed-point with linear but not-strongly-connected dependencies.
+Parameters of methods can be annotated to customize tracking:
+- Default: Track full parameter and its dependencies
+- `@unrestricted`: Do not track parameter at all
+- `@restrictedReturn`: For function parameters, only track return type (useful for higher-order functions)
 
-2. **For-all-relevant + For-all-affine** is traditional linear types:
-    - Each argument used exactly once across all returns
-    - More restrictive but simpler to reason about
-    - Closer to Linear Haskell's model
+### Using Custom Tensors (ComposedConnectives) for Different Constraint Combinations
 
-3. **For-each-relevant + For-each-affine** is very restrictive:
-    - All returns must have the same dependency structure
-    - Only useful for uniform recursive patterns
-    - Example: fixed-point with linear strongly connected dependencies (full mutual recursion). 
-
-4. **For-each-relevant + For-all-affine** is impractical:
-    - Can't have multiple returns (would violate for-all-affine)
-    - Only works for single return value
-
-**Comparison to Related Systems:**
-
-TODO
-
-### Using customApply for Different Constraint Combinations
-
-You can use `customApply` to select different constraint combinations:
+You can wrap return values in different custom tensor types to select constraint combinations.
+The library provides helper types for common patterns:
 
 ```scala
-import linearfn.{VerticalConstraint, HorizontalConstraint}
+import linearfn.RestrictedSelectable.{RestrictedFn, *}
+import test.{ForAllLinearConnective, ForAllAffineConnective, ForAllRelevantConnective}
 
 // Traditional linear types (each arg used exactly once total)
-LinearFn.customApply(
-  (vertical = VerticalConstraint.Affine,
-   horizontal = HorizontalConstraint.ForAllRelevantForAllAffine)
-)((a, b))(refs =>
-  (refs._1, refs._2)  // OK: each used once
-  // (refs._1, refs._2, refs._1) // Error: refs._1 used twice
+// ForAll = Linear, ForEach = Unrestricted
+RestrictedFn.apply((a, b))(refs =>
+  ForAllLinearConnective(Tuple1(refs._1, refs._2))  // OK: each used once
+  // ForAllLinearConnective((refs._1, refs._2, refs._1)) // Error: refs._1 used twice
 )
 
-// Uniform recursion (all returns must use all args)
-LinearFn.customApply(
-  (vertical = VerticalConstraint.Affine,
-   horizontal = HorizontalConstraint.ForEachRelevantForEachAffine)
-)((a, b))(refs =>
-  // Both returns must contain both a and b
-  (a.combine(b), a.combine(b))
+// Affine (each arg used at most once across all returns)
+// ForAll = Affine, ForEach = Unrestricted
+RestrictedFn.apply((a, b))(refs =>
+  ForAllAffineConnective((refs._1, refs._2))  // OK
+  // ForAllAffineConnective((refs._1, refs._1)) // Error: refs._1 used twice
 )
 
-// Vertical constraints control consumption
-LinearFn.customApply(
-  (vertical = VerticalConstraint.Linear,  // Must consume exactly once
-   horizontal = HorizontalConstraint.ForAllRelevantForEachAffine)
-)((file1, file2))(refs =>
-  (refs._1.close(), refs._2.close())  // OK: consumed via close()
-  // (refs._1, refs._2) // Error: not consumed
+// Relevant (each arg used at least once across all returns)
+// ForAll = Relevant, ForEach = Unrestricted
+RestrictedFn.apply((a, b))(refs =>
+  ForAllRelevantConnective((refs._1, refs._2))  // OK: both used
+  // ForAllRelevantConnective(Tuple1(refs._1)) // Error: refs._2 not used
 )
 ```
 
-**Vertical Constraints** (consumption tracking via `C` parameter):
-- `VerticalConstraint.Affine`: Consumed at most once (default)
-- `VerticalConstraint.Linear`: Consumed exactly once
-- `VerticalConstraint.Relevant`: Consumed at least once
+**Connective Helper Types** (defined in test/TestUtils.scala as examples):
+```scala
+// ForAll multiplicity, ForEach unrestricted
+type ForAllLinearConnective[RT <: Tuple] =
+  ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Linear]
 
-**Horizontal Constraints** (dependency tracking via `D` parameter):
-- `HorizontalConstraint.ForAllRelevantForEachAffine`: Current default (flexible recursion)
-- `HorizontalConstraint.ForAllRelevantForAllAffine`: Traditional linear types
-- `HorizontalConstraint.ForEachRelevantForEachAffine`: Uniform recursion
-- `HorizontalConstraint.ForEachRelevantForAllAffine`: Single return only (impractical)
+type ForAllAffineConnective[RT <: Tuple] =
+  ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Affine]
+
+type ForAllRelevantConnective[RT <: Tuple] =
+  ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Relevant]
+```
+
+**Multiplicity Constraints**:
+- `Multiplicity.Linear`: Used exactly once
+- `Multiplicity.Affine`: Used at most once
+- `Multiplicity.Relevant`: Used at least once
+- `Multiplicity.Unrestricted`: No restrictions
+
+**Constraint Dimensions**:
+- **ForAll**: Applied across all return values collectively
+- **ForEach**: Applied to each return value individually
 
 ## Usage
 
 ```scala
+import linearfn.RestrictedSelectable.{RestrictedFn, *}
+import test.ForAllAffineConnective  // Example helper type
+
 @ops // needed for Selectable-based implementation
 case class Person(name: String, age: Int):
   def greet(): String = s"Hello, I'm $name"
@@ -154,31 +106,31 @@ val alice = Person("Alice", 30)
 val bob = Person("Bob", 25)
 
 // Define a linear function with two arguments
-val result = LinearFn.apply((alice, bob))(refs =>
+val result = RestrictedFn.apply((alice, bob))(refs =>
   val greeting = refs._1.greet()
   val age = refs._2.age
-  (greeting, age)
+  ForAllAffineConnective((greeting, age))
 )
 // result: (Hello, I'm Alice, 25)
 
 // ✓ This compiles - each argument used exactly once
-LinearFn.apply((alice, bob))(refs =>
-  (refs._1.name, refs._2.name)
+RestrictedFn.apply((alice, bob))(refs =>
+  ForAllAffineConnective((refs._1.name, refs._2.name))
 )
 
-// ✗ This fails to compile - refs._2 not used
-LinearFn.apply((alice, bob))(refs =>
-  (refs._1.name, refs._1.age)
+// ✗ This fails to compile - refs._2 not used (violates Relevant constraint)
+RestrictedFn.apply((alice, bob))(refs =>
+  ForAllRelevantConnective((refs._1.name, refs._1.age))
 )
 
 // ✗ This fails to compile - field 'typo' does not exist
-LinearFn.apply((alice, bob))(refs =>
-  (refs._1.name, refs._2.typo)
+RestrictedFn.apply((alice, bob))(refs =>
+  ForAllAffineConnective((refs._1.name, refs._2.typo))
 )
 
-// ✗ This fails to compile because the first return value is not linear, the second is ok 
-LinearFn.apply((alice, bob))(refs =>
-  (refs._1.age + refs._1.age, refs._2.age + 10)
+// ✗ This fails to compile because refs._1 used twice (violates Affine constraint)
+RestrictedFn.apply((alice, bob))(refs =>
+  ForAllAffineConnective((refs._1.age + refs._1.age, refs._2.age + 10))
 )
 ```
 
@@ -195,18 +147,22 @@ Uses Scala 3's `Selectable` trait with structural types.
 - **Type safe** - field/method names checked at compile time
 
 ```scala
-import RestrictedSelectable.{LinearFn, Restricted}
+import linearfn.RestrictedSelectable.{RestrictedFn, Restricted, *}
+import test.ForAllAffineConnective
 
-// Users must define extension methods for each field/method.
-extension [D <: Tuple](p: Person ~ D)
-  def name: Restricted[String, D] = p.stageField("name")
-  def age: Restricted[Int, D] = p.stageField("age")
-  def greet(): Restricted[String, D] = p.stageCall[String, D]("greet", EmptyTuple)
+// Users must define extension methods for each field/method (or use @ops)
+object PersonOps:
+  extension [D <: Tuple](p: Restricted[Person, D])
+    def name: Restricted[String, D] = p.stageField("name")
+    def age: Restricted[Int, D] = p.stageField("age")
+    def greet(): Restricted[String, D] = p.stageCall[String, D]("greet", EmptyTuple)
 
-val result = LinearFn.apply((alice, bob))(refs =>
+import PersonOps.*
+
+val result = RestrictedFn.apply((alice, bob))(refs =>
   val name = refs._1.name        // Compile-time checked
   val badField = refs._1.typo    // Compile error!
-  (name, refs._2.age)
+  ForAllAffineConnective((name, refs._2.age))
 )
 ```
 
@@ -264,10 +220,12 @@ object TestPersonOps:
 3. Import the generated extensions in your code:
 ```scala
 import TestPersonOps.*
+import linearfn.RestrictedSelectable.RestrictedFn
+import test.ForAllAffineConnective
 
-val result = LinearFn.apply((person1, person2))(refs =>
+val result = RestrictedFn.apply((person1, person2))(refs =>
   val combined = refs._1.combine(refs._2)
-  (combined, combined)
+  ForAllAffineConnective((combined, combined))
 )
 ```
 
@@ -286,24 +244,20 @@ def method[D1 <: Tuple, D2 <: Tuple](
 
 **Parameter Tracking Annotations:**
 
-The `@ops` generator supports annotations to customize how methods and their parameters contribute to linearity tracking. 
+The `@ops` generator supports annotations to customize how methods and their parameters contribute to linearity tracking.
 
 | Annotation | Applied To | Tracking Behavior                                                         | Use Case                                                                                                   |
 |------------|-----------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | _(none)_ | Parameters | Full tracking                                                             | Default - track parameter and its dependencies                                                             |
-| _(none)_ | Methods | Consumes receiver                                                         | Default - terminal operations that consume the receiver                                                    |
 | `@unrestricted` | Parameters | No tracking                                                               | Pure values, config, predicates that don't need tracking                                                   |
 | `@restrictedReturn` | Function parameters | Track return type only                                                    | Higher-order functions - track what function returns, not function itself                                  |
-| `@repeatable` | Methods | Can only be called on unconsumed values but can be called multiple times. | Operations that can be chained: `write()`, `map()`, `flatMap()`                                            |
-| `@consumed` | Methods | Explicit version of default - consumes receiver.                          | Terminal operations like `close()`, `freeze()` (same as no annotation)                                     |
-| `@unconsumed` | Methods | Method works on any consumption state and does not modify reciever.       | Relax constraints for this particular call, good for debugging or helper methods that do not modify state. |
 
 **Detailed Tracking Modes:**
 
 1. **Default (no annotation)** - Full parameter tracking:
    ```scala
    def combine(other: Example): Example
-   // Generates: other: Restricted[Example, D1, C1]
+   // Generates: other: Restricted[Example, D1]
    // Dependencies: tracked and concatenated
    ```
 
@@ -322,7 +276,7 @@ The `@ops` generator supports annotations to customize how methods and their par
 3. **`@restrictedReturn`** - Track function return type only:
    ```scala
    def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
-   // Generates: f: A => Restricted[Query[B], D1, C1]
+   // Generates: f: A => Restricted[Query[B], D1]
    // Dependencies: only the returned Query[B] is tracked
    ```
 
@@ -330,112 +284,6 @@ The `@ops` generator supports annotations to customize how methods and their par
    - The function itself is a callback/transformer
    - You want to track what the function returns, not the function object
    - Common in DSLs with `map`/`flatMap`/`filter` operations
-
-4. **`@repeatable`, `@consumed`, and `@unconsumed`** - Method consumption tracking:
-
-   Some operations conceptually "consume" an object, after which further operations shouldn't be allowed. Examples include:
-   - `close()` on a file handle
-   - `freeze()` on a mutable array
-   - `commit()` or `rollback()` on a transaction
-
-   The linearity system tracks consumption state using a third type parameter `C <: Tuple` on `Restricted[A, D, C]`:
-   - `C = EmptyTuple`: Value is unconsumed (can call regular operations)
-   - `C = Tuple1[true]`: Value is consumed (limited operations allowed)
-
-   **Default (no annotation)**: Requires unconsumed receiver, returns consumed value
-   ```scala
-   def freeze(): Array[A]
-   // Generated:
-   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
-   //   def freeze(): Restricted[Array[A], D, Tuple1[true]]
-   ```
-
-   **`@repeatable`**: Requires unconsumed receiver, returns unconsumed value
-   ```scala
-   @repeatable
-   def write(i: Int, a: A): MArray[A]
-   // Generated:
-   // extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
-   //   def write(...): Restricted[MArray[A], ..., EmptyTuple]
-   ```
-
-   **`@consumed`**: Explicit version of default - requires unconsumed receiver, returns consumed value
-   ```scala
-   @consumed
-   def close(): String
-   // Generated:
-   // extension [D <: Tuple](p: Restricted[FileHandle, D, EmptyTuple])
-   //   def close(): Restricted[String, D, Tuple1[true]]
-   ```
-
-   **`@unconsumed`**: Accepts any consumption state, preserves that state
-   ```scala
-   @unconsumed
-   def size(): (MArray[A], Int)
-   // Generated:
-   // extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
-   //   def size(): Restricted[(MArray[A], Int), D, C]
-   ```
-
-**Consumption Tracking Examples:**
-
-Example taken from Linear Haskell. Say you want a mutable array that you can write to many times, but when you call 
-`freeze()`, you can no longer write to it.
-
-```scala
-@ops
-case class MArray[A](private val buf: Array[A]):
-  // @repeatable: unconsumed → unconsumed (can be called multiple times)
-  @repeatable
-  def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
-
-  // @unconsumed: any → any (preserves state)
-  @unconsumed
-  def size(): (MArray[A], Int) = (this, buf.length)
-
-  // Default: unconsumed → consumed (terminal operation)
-  def freeze(): Array[A] = buf.clone()
-
-// Using default apply that enforces affine restrictions on use.
-
-// ✓ OK: write, then freeze
-LinearFn.apply(Tuple1(arr))(refs =>
-  val updated = refs._1.write(0, 10)  
-  val frozen = updated.freeze()     
-  Tuple1(frozen)
-)
-
-// ✓ OK: size can be called before freeze
-LinearFn.apply(Tuple1(arr))(refs =>
-  val (arr1, sz) = refs._1.size()     // Unconsumed → unconsumed
-  val frozen = arr1.freeze()          // Unconsumed → consumed
-  Tuple1(frozen)
-)
-
-// ✓ OK: size can be called after freeze (because @unconsumed)
-LinearFn.apply(Tuple1(arr))(refs =>
-  val consumed = refs._1.freeze()     // Unconsumed → consumed
-  val (arr2, sz) = consumed.size()    // Consumed → consumed (@unconsumed preserves)
-  Tuple1(arr2)
-)
-
-// ✗ ERROR: Can't write to consumed value
-LinearFn.apply(Tuple1(arr))(refs =>
-  val consumed = refs._1.freeze()     // Unconsumed → consumed
-  val updated = consumed.write(0, 10) // ERROR: write not defined 
-  Tuple1(updated)
-)
-
-// ✗ ERROR: Can't freeze twice
-LinearFn.apply(Tuple1(arr))(refs =>
-  val frozen = refs._1.freeze()       // Unconsumed → consumed
-  val frozen2 = frozen.freeze()       // ERROR: freeze not defined 
-  Tuple1(frozen2)
-)
-```
-
-**Note:** Currently, the consumption state of method parameters are ignored - both consumed and unconsumed arguments are 
-accepted. This may be refined in future versions if there is a use case.
 
 **Parameter Tracking Examples:**
 
@@ -525,13 +373,13 @@ Since `Tuple.Concat[EmptyTuple, D] = D`, plain values don't affect the dependenc
  precedent in Scala for this style and the alternative just requires ahead-of-time declaration of methods, so it's a trade-off.
 
 2. How can side effects be prevented if Scala is not purely functional?
-> Assuming that users do not call `.unsafe` unwrap functions in the body of a linear function, side effects are prevented 
- by (1) having all linear types wrapped in the `Restricted` type (see FAQ#1), and (2) staging the computation: 
- operations on linear types are wrapped in lambdas that are stored in the `Restricted` type. 
+> Assuming that users do not call `.unsafe` unwrap functions in the body of a linear function, side effects are prevented
+ by (1) having all linear types wrapped in the `Restricted` type (see FAQ#1), and (2) staging the computation:
+ operations on linear types are wrapped in lambdas that are stored in the `Restricted` type.
  Only terms returned by the linear function body are executed, so operations that are not returned are never executed.
- As users are required to annotate any methods that consume the value with @consumed, all operations on linear types 
- are tracked. However, this does mean that the library is more useful for DSLs than for general-purpose programming,
- since staging can introduce repeated computations if users call side-effectful methods on non-restricted types. 
+ All operations on linear types are tracked through the dependency tuples. However, this does mean that the library
+ is more useful for DSLs than for general-purpose programming, since staging can introduce repeated computations
+ if users call side-effectful methods on non-restricted types. 
 
 3. Returning types that nest Restricted types, e.g., `List[Restricted[T, D]]`.
 

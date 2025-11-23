@@ -48,11 +48,11 @@ object Expr:
  * RQT (wrapped tuple) is the tuple of restricted values.
  * DT (dependency tuple) is inferred from the actual dependencies in the composed values.
  */
-type DatalogConnective[RQT <: Tuple] = RestrictedSelectable.ComposedConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant]
+type DatalogConnective[RQT <: Tuple] = RestrictedSelectable.CustomConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant]
 object DatalogConnective:
   def apply[RQT <: Tuple](values: RQT) =
 //  (using ev: DT =:= RestrictedSelectable.ExtractDependencyTypes[RT]): DatalogConnective[RT, DT] =
-    RestrictedSelectable.ComposedConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant](values)
+    RestrictedSelectable.CustomConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant](values)
 // Query-level AST
 @ops
 class Query[A]():
