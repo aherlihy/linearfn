@@ -183,7 +183,7 @@ object ProductConnectiveFns:
       ForAllLinearConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachLinearFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -194,7 +194,7 @@ object ProductConnectiveFns:
       ForEachLinearConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -205,7 +205,7 @@ object ProductConnectiveFns:
       ForAllAffineConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -216,7 +216,7 @@ object ProductConnectiveFns:
       ForEachAffineConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -227,7 +227,7 @@ object ProductConnectiveFns:
       ForAllRelevantConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -238,7 +238,7 @@ object ProductConnectiveFns:
       ForEachRelevantConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachAffineForAllLinearFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -249,7 +249,7 @@ object ProductConnectiveFns:
       ForEachAffineForAllLinearConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachLinearForAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -260,7 +260,7 @@ object ProductConnectiveFns:
       ForEachLinearForAllAffineConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachAffineForAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -271,7 +271,7 @@ object ProductConnectiveFns:
       ForEachAffineForAllAffineConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachLinearForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -282,7 +282,7 @@ object ProductConnectiveFns:
       ForEachLinearForAllRelevantConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachAffineForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -293,7 +293,7 @@ object ProductConnectiveFns:
       ForEachAffineForAllRelevantConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
   def forEachRelevantForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
@@ -304,7 +304,7 @@ object ProductConnectiveFns:
       ForEachRelevantForAllRelevantConnective[RT]
     ]
   ): ExtractResultTypes[RT] =
-    builder.execute(bases)(fns)
+    builder.execute(fns)(bases)
 
 class CustomProductConnectiveTest extends FunSuite:
   import ProductConnectiveFnsOps.*
