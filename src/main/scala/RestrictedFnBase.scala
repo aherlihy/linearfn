@@ -289,12 +289,7 @@ abstract class RestrictedFnBase:
      * 3. Execute and unwrap the result
      *
      * Enforces the built-in connective semantics for plain tuples:
-     * - ForAll-Relevant: all arguments used at least once across all returns
-     * - ForAll-Affine: no argument used more than once across all returns
-     *
-     * These semantics treat plain tuples as a built-in connective where each argument
-     * is affine and relevant across the ENTIRE tuple (not per-return).
-     * For custom implementations with different semantics, use LinearFnBuilder directly.
+     * - ForAll-Linear: all arguments used exactly once across all returns
      *
      * @tparam M The multiplicity constraint (Linear, Affine, or Relevant)
      * @tparam AT The argument tuple type
