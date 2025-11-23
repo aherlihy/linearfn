@@ -38,100 +38,6 @@ import scala.annotation.StaticAnnotation
 class ops extends StaticAnnotation
 
 /**
- * Marker annotation for methods that can be called multiple times on the same value.
- *
- * When a method is annotated with @repeatable, the generated extension method:
- * - Can only be called on unconsumed values (C = EmptyTuple)
- * - Returns an unconsumed value (C = EmptyTuple)
- *
- * This allows the method to be called multiple times in a chain without consuming
- * the receiver.
- *
- * Usage:
- * {{{
- * @ops
- * case class MArray[A](private val buf: Array[A]):
- *   @repeatable  // Can be called multiple times
- *   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
- *
- *   // Default behavior: consumes the array
- *   def freeze(): Array[A] = buf.clone()
- * }}}
- *
- * The generated extension for write():
- * {{{
- * extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
- *   def write(...): Restricted[MArray[A], ..., EmptyTuple] = ...
- * }}}
- *
- * @repeatable and @unconsumed are mutually exclusive.
- */
-class repeatable extends StaticAnnotation
-
-/**
- * Marker annotation for methods that consume their receiver.
- *
- * NOTE: As of the current version, the default behavior (no annotation) is the same
- * as @consumed. This annotation is provided for explicitness.
- *
- * When a method is annotated with @consumed (or has no annotation), the generated
- * extension method:
- * - Can only be called on unconsumed values (C = EmptyTuple)
- * - Returns a consumed value (C = Tuple1[true])
- *
- * Usage:
- * {{{
- * @ops
- * case class MArray[A](private val buf: Array[A]):
- *   @repeatable
- *   def write(i: Int, a: A): MArray[A] = { buf(i) = a; this }
- *
- *   @consumed  // Explicit annotation (same as default)
- *   def freeze(): Array[A] = buf.clone()
- * }}}
- *
- * The generated extension for freeze():
- * {{{
- * extension [D <: Tuple](p: Restricted[MArray[A], D, EmptyTuple])
- *   def freeze(): Restricted[Array[A], D, Tuple1[true]] = ...
- * }}}
- *
- * This allows the type system to track that freeze() consumes the MArray,
- * preventing further use after calling freeze().
- *
- * @consumed and @unconsumed are mutually exclusive.
- */
-class consumed extends StaticAnnotation
-
-/**
- * Marker annotation for methods that can be called on consumed or unconsumed values.
- *
- * When a method is annotated with @unconsumed, the generated extension method:
- * - Can be called on values in any consumption state (C <: Tuple)
- * - Preserves the exact consumption state of the receiver
- *
- * Usage:
- * {{{
- * @ops
- * case class MArray[A](private val buf: Array[A]):
- *   @unconsumed  // Can be called on consumed or unconsumed arrays
- *   def size(): Int = buf.length
- * }}}
- *
- * The generated extension for size():
- * {{{
- * extension [D <: Tuple, C <: Tuple](p: Restricted[MArray[A], D, C])
- *   def size(): Restricted[Int, D, C] = ...
- * }}}
- *
- * This allows calling query methods on both consumed and unconsumed values,
- * preserving the consumption state.
- *
- * @consumed and @unconsumed are mutually exclusive.
- */
-class unconsumed extends StaticAnnotation
-
-/**
  * Parameter-level annotation for function parameters where the function's return
  * type should be wrapped in Restricted.
  *
@@ -165,17 +71,17 @@ class unconsumed extends StaticAnnotation
  * Generated extensions:
  * {{{
  * // union: entire parameter wrapped (default behavior)
- * def union[D1 <: Tuple, C1 <: Tuple](
- *   that: Restricted[Query[A], D1, C1]
- * ): Restricted[Query[A], Tuple.Concat[D1, D], EmptyTuple]
+ * def union[D1 <: Tuple](
+ *   that: Restricted[Query[A], D1]
+ * ): Restricted[Query[A], Tuple.Concat[D1, D]]
  *
  * // flatMap: function not wrapped, but Query[B] is
- * def flatMap[B, D1 <: Tuple, C1 <: Tuple](
- *   f: A => Restricted[Query[B], D1, C1]
- * ): Restricted[Query[B], Tuple.Concat[D1, D], EmptyTuple]
+ * def flatMap[B, D1 <: Tuple](
+ *   f: A => Restricted[Query[B], D1]
+ * ): Restricted[Query[B], Tuple.Concat[D1, D]]
  *
  * // map: nothing wrapped (due to @unrestricted on parameter)
- * def map[B](f: A => B): Restricted[Query[B], D, EmptyTuple]
+ * def map[B](f: A => B): Restricted[Query[B], D]
  * }}}
  *
  * Invalid usage (will cause build-time errors):

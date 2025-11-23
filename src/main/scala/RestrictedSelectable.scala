@@ -15,29 +15,29 @@ import scala.reflect.Selectable.reflectiveSelectable
 object RestrictedSelectable extends RestrictedFnBase:
 
   // Implementation-specific Restricted trait - extends RestrictedBase
-  trait Restricted[A, D <: Tuple, C <: Tuple] extends RestrictedBase[A, D, C], Selectable:
-    type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D, C]]
-    def stageField(name: String): Restricted[A, D, C]
-    def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2]
+  trait Restricted[A, D <: Tuple] extends RestrictedBase[A, D], Selectable:
+    type Fields = NamedTuple.Map[NamedTuple.From[A], [T] =>> Restricted[T, D]]
+    def stageField(name: String): Restricted[A, D]
+    def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2]
 
     def selectDynamic(name: String) = {
       stageField(name)
     }
 
     // TODO: for now unused
-    def applyDynamic(method: String)(): Restricted[A, D, C] = {
-      stageCall[A, D, C](method, EmptyTuple)
+    def applyDynamic(method: String)(): Restricted[A, D] = {
+      stageCall[A, D](method, EmptyTuple)
     }
 
     // TODO: for now unused
-    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D], CollateConsumed[T1, C]] = { // TODO:
-      stageCall[A, CollateDeps[T1, D], CollateConsumed[T1, C]](method, Tuple1(arg))
+    def applyDynamic[T1](method: String)(arg: T1): Restricted[A, CollateDeps[T1, D]] = {
+      stageCall[A, CollateDeps[T1, D]](method, Tuple1(arg))
     }
 
     def execute(): A
 
   object Restricted:
-    case class RestrictedRef[A, D <: Tuple, C <: Tuple](protected val fn: () => A) extends Restricted[A, D, C]:
+    case class RestrictedRef[A, D <: Tuple](protected val fn: () => A) extends Restricted[A, D]:
       def execute(): A = fn()
 
       override def stageField(name: String) =
@@ -48,14 +48,14 @@ object RestrictedSelectable extends RestrictedFnBase:
           field.get(obj).asInstanceOf[A]
         )
 
-      override def stageCall[R, D2 <: Tuple, C2 <: Tuple](name: String, args: Tuple): Restricted[R, D2, C2] = {
-        RestrictedRef[R, D2, C2](() =>
+      override def stageCall[R, D2 <: Tuple](name: String, args: Tuple): Restricted[R, D2] = {
+        RestrictedRef[R, D2](() =>
           val obj = fn()
 
           // Helper to unwrap Restricted values from function return types
           // This is needed because @restrictedReturn can appear on function parameters like:
           //   def flatMap[B](@restrictedReturn f: A => Query[B]): Query[B]
-          // The generated extension receives: f: A => Restricted[Query[B], D, C]
+          // The generated extension receives: f: A => Restricted[Query[B], D]
           // But the actual method expects: f: A => Query[B]
           // So we wrap the function to unwrap its Restricted return value
           def unwrapNested(arg: Any): Any = arg match {
@@ -63,7 +63,7 @@ object RestrictedSelectable extends RestrictedFnBase:
               (a: Any) => {
                 val result = f.asInstanceOf[Any => Any](a)
                 result match {
-                  case r: Restricted[_, _, _] => r.execute()
+                  case r: Restricted[_, _] => r.execute()
                   case other => other
                 }
               }
@@ -72,7 +72,7 @@ object RestrictedSelectable extends RestrictedFnBase:
 
           // Execute any Restricted arguments to get their actual values
           val executedArgs = args.productIterator.map {
-            case r: Restricted[_, _, _] => r.execute()
+            case r: Restricted[_, _] => r.execute()
             case other => unwrapNested(other)
           }.toSeq
 
@@ -100,9 +100,9 @@ object RestrictedSelectable extends RestrictedFnBase:
       }
 
     // Implicit conversion to allow plain values where Restricted is expected
-    given [S]: Conversion[S, Restricted[S, EmptyTuple, EmptyTuple]] with
-      def apply(value: S): Restricted[S, EmptyTuple, EmptyTuple] =
-        RestrictedRef[S, EmptyTuple, EmptyTuple](() => value)
+    given [S]: Conversion[S, Restricted[S, EmptyTuple]] with
+      def apply(value: S): Restricted[S, EmptyTuple] =
+        RestrictedRef[S, EmptyTuple](() => value)
 
     /**
      * Type class for user-defined liftable containers.
@@ -116,7 +116,7 @@ object RestrictedSelectable extends RestrictedFnBase:
 
     /**
      * Extension method to explicitly lift user-defined containers.
-     * Transforms F[Restricted[A, D, C]] into Restricted[F[A], D, C].
+     * Transforms F[Restricted[A, D]] into Restricted[F[A], D].
      *
      * Usage:
      * {{{
@@ -129,10 +129,10 @@ object RestrictedSelectable extends RestrictedFnBase:
      * )
      * }}}
      */
-    extension [F[_], A, D <: Tuple, C <: Tuple](container: F[Restricted[A, D, C]])(using ev: Liftable[F])
-      def lift: Restricted[F[A], D, C] =
-        RestrictedRef[F[A], D, C](() => ev.map(container)(_.execute()))
+    extension [F[_], A, D <: Tuple](container: F[Restricted[A, D]])(using ev: Liftable[F])
+      def lift: Restricted[F[A], D] =
+        RestrictedRef[F[A], D](() => ev.map(container)(_.execute()))
 
   // Implement abstract methods from RestrictedFnBase
-  def makeRestrictedRef[A, D <: Tuple, C <: Tuple](fn: () => A): Restricted[A, D, C] =
+  def makeRestrictedRef[A, D <: Tuple](fn: () => A): Restricted[A, D] =
     Restricted.RestrictedRef(fn)

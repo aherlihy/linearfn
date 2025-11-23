@@ -1,7 +1,7 @@
  package test
 
  import munit.FunSuite
- import linearfn.{RestrictedSelectable, Multiplicity, ops, consumed, unconsumed, repeatable, RestrictedFnBase}
+ import linearfn.{RestrictedSelectable, Multiplicity, ops, RestrictedFnBase}
 
 
  /**

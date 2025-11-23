@@ -3,14 +3,12 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.{ops, repeatable, RestrictedSelectable, Multiplicity}
+import linearfn.{ops, RestrictedSelectable, Multiplicity}
 
 // Simple generic class to test generic type parameter support
 @ops
 case class Box[T](value: T):
-  @repeatable
   def get(): T = value
-  @repeatable
   def set(newValue: T): Box[T] = Box(newValue)
 
 /**

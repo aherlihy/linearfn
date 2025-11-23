@@ -24,7 +24,7 @@ import linearfn.{RestrictedSelectable}
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
        // Create a list containing one Restricted element
        // The tuple conversion should automatically lift it
-       (List(refs._1.consume()), refs._2.consume())
+       (List(refs._1), refs._2)
      )
 
      assertEquals(result._1, List(ex1))
@@ -36,7 +36,7 @@ import linearfn.{RestrictedSelectable}
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Option
-       Tuple1(Option(refs._1.consume()))
+       Tuple1(Option(refs._1))
      )
 
      assertEquals(result._1, Some(ex1))
@@ -47,7 +47,7 @@ import linearfn.{RestrictedSelectable}
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Vector
-       Tuple1(Vector(refs._1.consume()))
+       Tuple1(Vector(refs._1))
      )
 
      assertEquals(result._1, Vector(ex1))
@@ -58,7 +58,7 @@ import linearfn.{RestrictedSelectable}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         (List(refs._1.consume()), List(refs._1.consume()))
+         (List(refs._1), List(refs._1))
        )
      """)
      // This should fail because refs._1 is used in two different lists
@@ -73,7 +73,7 @@ import linearfn.{RestrictedSelectable}
        val ex2 = OpsExample("Bob", "25")
        val ex3 = OpsExample("Charlie", "35")
        RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2, ex3))(refs =>
-         (List(refs._1.consume()), refs._1.consume(), refs._2.consume())
+         (List(refs._1), refs._1, refs._2)
        )
      """)
      // This should fail because we're returning both a List containing refs._1
@@ -87,7 +87,7 @@ import linearfn.{RestrictedSelectable}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         (Option(refs._1.consume()), List(refs._1.consume()))
+         (Option(refs._1), List(refs._1))
        )
      """)
      // This should fail because refs._1 appears in both Option and List
@@ -101,7 +101,7 @@ import linearfn.{RestrictedSelectable}
 
      // This is fine - refs._1 in first container, refs._2 in second
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-       (List(refs._1.consume()), Option(refs._2.consume()))
+       (List(refs._1), Option(refs._2))
      )
 
      assertEquals(result._1, List(ex1))
@@ -114,9 +114,9 @@ import linearfn.{RestrictedSelectable}
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
        // Create a nested list structure
-       val innerList = List(refs._1.consume())
+       val innerList = List(refs._1)
        val nestedList = List(innerList)
-       (nestedList, refs._2.consume())
+       (nestedList, refs._2)
      )
 
      assertEquals(result._1, List(List(ex1)))
@@ -128,7 +128,7 @@ import linearfn.{RestrictedSelectable}
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // Create nested List[Option[...]]
-       val opt = Option(refs._1.consume())
+       val opt = Option(refs._1)
        val listOfOpt = List(opt)
        Tuple1(listOfOpt)
      )
@@ -141,7 +141,7 @@ import linearfn.{RestrictedSelectable}
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // Create deeply nested structure
-       val inner = List(refs._1.consume())
+       val inner = List(refs._1)
        val middle = List(inner)
        val outer = List(middle)
        Tuple1(outer)
@@ -160,7 +160,7 @@ import linearfn.{RestrictedSelectable}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         val list = List(refs._1.consume())
+         val list = List(refs._1)
          (list, list)  // Trying to return the same list twice
        )
      """)
@@ -177,15 +177,15 @@ import linearfn.{RestrictedSelectable}
      def combine(other: Person): Person =
        Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-   extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
-     def combine[D2 <: Tuple, C2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2, C2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2], C] =
-       p.stageCall[Person, Tuple.Concat[D, D2], C]("combine", Tuple1(other))
+   extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
+     def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
+       p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
 
    val person1 = Person("Alice", 30)
    val person2 = Person("Bob", 25)
    val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((person1, person2))(refs =>
-     val wrapped = Wrap(refs._1.combine(refs._2).consume())
-     (wrapped, refs._2.consume())
+     val wrapped = Wrap(refs._1.combine(refs._2))
+     (wrapped, refs._2)
    )
      """)
      assert(obtained.contains(TestUtils.missingTypeClassMsg), s"obtained: $obtained")
@@ -201,8 +201,8 @@ import linearfn.{RestrictedSelectable}
      val ex2 = OpsExample("Bob", "25")
 
      val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-       val wrapped = Wrap(refs._1.consume()).lift
-       (wrapped, refs._2.consume())
+       val wrapped = Wrap(refs._1).lift
+       (wrapped, refs._2)
      )
 
      assertEquals(result._1.v, ex1)
@@ -219,7 +219,7 @@ import linearfn.{RestrictedSelectable}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         val wrapped = Wrap(refs._1.consume()).lift
+         val wrapped = Wrap(refs._1).lift
          (wrapped, wrapped)  // Trying to return same wrapped value twice
        )
      """)

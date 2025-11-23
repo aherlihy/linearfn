@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{CustomConnective, ErrorMsg, Multiplicity, RestrictedSelectable, consumed, ops, repeatable, restricted, restrictedReturn, unrestricted}
+import linearfn.{ErrorMsg, Multiplicity, RestrictedSelectable, ops, restricted, restrictedReturn, unrestricted}
 
 import scala.annotation.implicitNotFound
 
@@ -43,33 +43,40 @@ object Expr:
 
   case class ExprLit(i: Int) extends Expr[Int]
 
+/**
+ * DatalogConnective: Type alias for the connective used in linear datalog.
+ * - ForEach = Affine: each argument can appear at most once per return value
+ * - ForAll = Relevant: each argument must appear at least once across all returns
+ *
+ * DT (dependency tuple) is inferred from the actual dependencies in the composed values.
+ */
+type DatalogConnective[RT <: Tuple, DT <: Tuple] = RestrictedSelectable.ComposedConnective[RT, DT, Multiplicity.Affine, Multiplicity.Relevant]
+object DatalogConnective:
+  inline def apply[RT <: Tuple, DT <: Tuple]
+  (values: RT)
+  (using ev: DT =:= RestrictedSelectable.ExtractDependencyTypes[RT]): DatalogConnective[RT, DT] =
+    RestrictedSelectable.ComposedConnective[RT, DT, Multiplicity.Affine, Multiplicity.Relevant](values)
 // Query-level AST
 @ops
 class Query[A]():
-  @repeatable
   def flatMap[B](@restrictedReturn f: Expr.Ref[A] => Query[B]): Query[B] =
     val ref = Expr.Ref[A]()
     Query.FlatMap(this, Expr.Fun(ref, f(ref)))
 
-  @repeatable
   def map[B](@unrestricted f: Expr.Ref[A] => Expr[B]): Query[B] =
     val ref = Expr.Ref[A]()
     Query.Map(this, Expr.Fun(ref, f(ref)))
 
-  @repeatable
   def withFilter(@unrestricted predicate: Expr.Ref[A] => Expr[Boolean]): Query[A] =
     val ref = Expr.Ref[A]()
     Query.Filter[A](this, Expr.Fun(ref, predicate(ref)))
 
-  @repeatable
   def filter(@unrestricted predicate: Expr.Ref[A] => Expr[Boolean]): Query[A] =
     withFilter(predicate)
 
-  @repeatable
   def union(that: Query[A]): Query[A] =
     Query.Union[A](this, that)
 
-  @repeatable
   def unionAll(@restricted that: Query[A]): Query[A] =
     Query.Union[A](this, that)
 
@@ -117,14 +124,6 @@ object Query:
   case class IntensionalPredicates[R](predicates: scala.collection.immutable.Map[IntensionalRef[Any], Query[Any]], idx: Int) extends Query[R]:
     override def toString: String = s"IntensionalPredicates(predicates = ${predicates}, idx = ${idx})"
 
-  /**
-   * DatalogConnective: Type alias for the connective used in linear datalog.
-   * - ForEach = Affine: each argument can appear at most once per return value
-   * - ForAll = Relevant: each argument must appear at least once across all returns
-   *
-   * DT (dependency tuple) is inferred from the actual dependencies in the composed values.
-   */
-  type DatalogConnective[RT <: Tuple, DT <: Tuple] = RestrictedSelectable.ComposedConnective[RT, DT, Multiplicity.Affine, Multiplicity.Relevant]
 
   // Helper type to extract row types from Query tuple
   // This is domain-specific to linear datalog: ensures return Queries have same row types as argument Queries
@@ -132,14 +131,6 @@ object Query:
     case EmptyTuple => EmptyTuple
     case Query[r] *: tail => r *: ExtractQueryRowTypes[tail]
 
-  /**
-   * compose: Construct a DatalogConnective from a tuple of Restricted values.
-   * This is the composition operator for linear datalog queries.
-   */
-  def compose[InputT <: Tuple, DT <: Tuple](
-    values: InputT
-  )(using ev: DT =:= RestrictedSelectable.ExtractDependencyTypes[InputT]): RestrictedSelectable.ComposedConnective[InputT, DT, Multiplicity.Affine, Multiplicity.Relevant] =
-    RestrictedSelectable.ComposedConnective[InputT, DT, Multiplicity.Affine, Multiplicity.Relevant](values)
 
   /**
    * fixedPoint: Fixed-point operator for linear datalog.

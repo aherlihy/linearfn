@@ -17,7 +17,7 @@ class ImplicitConversionTest extends FunSuite:
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
       // Can pass plain String - implicitly converted to Restricted[String, EmptyTuple]
       val updated = refs._1.singleRestrictedPrimitiveArg("Alicia")
-      Tuple1(updated.consume())
+      Tuple1(updated)
     )
 
     assertEquals(result._1.name, "Alicia")
@@ -29,7 +29,7 @@ class ImplicitConversionTest extends FunSuite:
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Linear)((person1, person2))(refs =>
       // refs._2 is already Restricted, but singleRestrictedProductArg accepts both Restricted and plain
-      val combined = refs._1.singleRestrictedProductArg(refs._2).consume()
+      val combined = refs._1.singleRestrictedProductArg(refs._2)
       Tuple1(combined)
     )
 
@@ -43,10 +43,10 @@ class ImplicitConversionTest extends FunSuite:
       // Plain "Alicia" gets converted to Restricted[String, EmptyTuple]
       // Tuple.Concat[EmptyTuple, D] = D, so the result type is still correct
       val updated = refs._1.singleRestrictedPrimitiveArg("Alicia")
-      Tuple1(updated.consume())
+      Tuple1(updated)
     )
 
-    assert(result._1.name == "Alicia")
+    assertEquals(result._1.name, "Alicia")
   }
 
   test("multiple plain string arguments are all tracked independently") {
@@ -54,12 +54,12 @@ class ImplicitConversionTest extends FunSuite:
       def greetWith(prefix: String, suffix: String): String =
         s"$prefix $name $suffix"
 
-    extension [D <: Tuple, C <: Tuple](p: RestrictedSelectable.Restricted[Person, D, C])
-      def greetWith[D1 <: Tuple, C1 <: Tuple, D2 <: Tuple, C2 <: Tuple](
-        prefix: RestrictedSelectable.Restricted[String, D1, C1],
-        suffix: RestrictedSelectable.Restricted[String, D2, C2]
-      ): RestrictedSelectable.Restricted[String, Tuple.Concat[D1, Tuple.Concat[D2, D]], Tuple1[true]] =
-        p.stageCall[String, Tuple.Concat[D1, Tuple.Concat[D2, D]], Tuple1[true]]("greetWith", (prefix, suffix))
+    extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
+      def greetWith[D1 <: Tuple, D2 <: Tuple](
+        prefix: RestrictedSelectable.Restricted[String, D1],
+        suffix: RestrictedSelectable.Restricted[String, D2]
+      ): RestrictedSelectable.Restricted[String, Tuple.Concat[D1, Tuple.Concat[D2, D]]] =
+        p.stageCall[String, Tuple.Concat[D1, Tuple.Concat[D2, D]]]("greetWith", (prefix, suffix))
 
     val person = Person("Alice")
 

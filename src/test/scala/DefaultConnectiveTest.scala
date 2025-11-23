@@ -1,23 +1,16 @@
 package test
 
 import munit.FunSuite
-import linearfn.{RestrictedSelectable, Multiplicity, ops, consumed, unconsumed, repeatable}
+import linearfn.{RestrictedSelectable, Multiplicity, ops}
 import scala.annotation.experimental
 
 /**
- * Comprehensive tests for @ops annotation with @consumed, @unconsumed, and @repeatable.
+ * Comprehensive tests for custom connectives
  *
- * Tests the interaction between:
- * - Multiplicities: Linear (exactly once), Affine (at most once), Relevant (at least once)
- * - Annotations: @consumed, @unconsumed, @repeatable
- * - ForAll-Affine + ForAll-Relevant semantics for plain tuples
  */
 @experimental
 class DefaultConnectiveTest extends FunSuite:
   import OpsExampleOps.*
-  // ============================================================================
-  // Tests for ForAll-Affine + ForAll-Relevant semantics
-  // ============================================================================
 
   test("General affine: all arguments returned in tuple") {
     val a = OpsExample("a")
@@ -47,8 +40,8 @@ class DefaultConnectiveTest extends FunSuite:
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
       import scala.language.implicitConversions
       import RestrictedSelectable.Restricted.given
-      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple, EmptyTuple] = a.consume()
-      (refs._1.consume(), refs._2.consume(), capturedA) // Both refs used exactly once
+      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple] = a
+      (refs._1, refs._2, capturedA) // Both refs used exactly once
     )
 
     assertEquals(result._1.name, "a")
@@ -66,7 +59,7 @@ class DefaultConnectiveTest extends FunSuite:
       val b = OpsExample("b")
 
       RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
-        (refs._1.consume(), refs._2.singleRestrictedProductArg(refs._2).consume())  // Error: refs._2 used twice
+        (refs._1, refs._2.singleRestrictedProductArg(refs._2))  // Error: refs._2 used twice
       )
     """)
 
@@ -81,7 +74,7 @@ class DefaultConnectiveTest extends FunSuite:
     val b = OpsExample("b")
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
-      (refs._1.consume(), refs._2.consume()) // Both args used exactly once
+      (refs._1, refs._2) // Both args used exactly once
     )
 
     assertEquals(result._1.name, "a")
@@ -92,7 +85,7 @@ class DefaultConnectiveTest extends FunSuite:
     val b = OpsExample("b")
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
-      Tuple1(refs._1.singleRestrictedProductArg(refs._2).consume()) // Both refs used exactly once
+      Tuple1(refs._1.singleRestrictedProductArg(refs._2)) // Both refs used exactly once
     )
 
     assertEquals(result._1.name, "a & b")
@@ -104,8 +97,8 @@ class DefaultConnectiveTest extends FunSuite:
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
       import scala.language.implicitConversions
       import RestrictedSelectable.Restricted.given
-      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple, EmptyTuple] = a.consume()
-      (refs._1.consume(), refs._2.consume(), capturedA) // Both refs used exactly once
+      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple] = a
+      (refs._1, refs._2, capturedA) // Both refs used exactly once
     )
 
     assertEquals(result._1.name, "a")
@@ -127,7 +120,7 @@ class DefaultConnectiveTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains(TestUtils.multiplicityConstraintFailed),
+      obtained.contains(TestUtils.compositionForAllFailed),
       s"Expected ForAll-Relevant error but got: $obtained"
     )
   }
@@ -146,8 +139,8 @@ class DefaultConnectiveTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains(TestUtils.multiplicityConstraintFailed),
-      s"Expected ForAll-Affine error but got: $obtained"
+      obtained.contains(TestUtils.compositionForEachFailed),
+      s"Expected ForEach-Affine error but got: $obtained"
     )
   }
 
@@ -156,7 +149,7 @@ class DefaultConnectiveTest extends FunSuite:
     val b = OpsExample("b")
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
-      (refs._1.consume(), refs._2.consume()) // Both args used exactly once
+      (refs._1, refs._2) // Both args used exactly once
     )
 
     assertEquals(result._1.name, "a")
@@ -167,7 +160,7 @@ class DefaultConnectiveTest extends FunSuite:
     val b = OpsExample("b")
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
-      Tuple1(refs._1.singleRestrictedProductArg(refs._2).consume()) // Both refs used exactly once
+      Tuple1(refs._1.singleRestrictedProductArg(refs._2)) // Both refs used exactly once
     )
 
     assertEquals(result._1.name, "a & b")
@@ -179,8 +172,8 @@ class DefaultConnectiveTest extends FunSuite:
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
       import scala.language.implicitConversions
       import RestrictedSelectable.Restricted.given
-      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple, EmptyTuple] = a
-      (refs._1.consume(), refs._2.consume(), capturedA) // Both refs used exactly once
+      val capturedA: RestrictedSelectable.Restricted[OpsExample, EmptyTuple] = a
+      (refs._1, refs._2, capturedA) // Both refs used exactly once
     )
 
     assertEquals(result._1.name, "a")
@@ -202,19 +195,19 @@ class DefaultConnectiveTest extends FunSuite:
     """)
 
     assert(
-      obtained.contains(TestUtils.multiplicityConstraintFailed),
+      obtained.contains(TestUtils.compositionForAllFailed),
       s"Expected ForAll-Relevant error but got: $obtained"
     )
   }
-  test("General relevant: arguments can be used twice") {
+  test("General relevant: all arguments must be used at least once") {
     val a = OpsExample("a")
     val b = OpsExample("b")
 
     val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
-      (refs._1.singleRestrictedProductArg(refs._2).consume(), refs._2.consume())
+      (refs._1, refs._2)
     )
 
-    assertEquals(result._1.name, "a & b")
+    assertEquals(result._1.name, "a")
     assertEquals(result._2.name, "b")
   }
 

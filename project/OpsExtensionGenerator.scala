@@ -171,7 +171,7 @@ object OpsExtensionGenerator {
           // Single-parameter function - wrap return type
           val paramType = params.head.toString
           val returnType = res.toString
-          s"$paramType => RestrictedSelectable.Restricted[$returnType, D${index + 1}, C${index + 1}]"
+          s"$paramType => RestrictedSelectable.Restricted[$returnType, D${index + 1}]"
         case Type.Function(params, _) =>
           // Multi-parameter function - error
           throw new IllegalStateException(
@@ -188,30 +188,6 @@ object OpsExtensionGenerator {
       }
     }
 
-    // Check for @repeatable annotation on method
-    val isRepeatable = method.mods.exists {
-      case Mod.Annot(Init(Type.Name("repeatable"), _, _)) => true
-      case _ => false
-    }
-
-    // Check for @consumed annotation on method
-    val isConsumed = method.mods.exists {
-      case Mod.Annot(Init(Type.Name("consumed"), _, _)) => true
-      case _ => false
-    }
-
-    // Check for @unconsumed annotation on method
-    val isUnconsumed = method.mods.exists {
-      case Mod.Annot(Init(Type.Name("unconsumed"), _, _)) => true
-      case _ => false
-    }
-
-    // Ensure annotations are mutually exclusive
-    val annotationCount = Seq(isRepeatable, isConsumed, isUnconsumed).count(identity)
-    if (annotationCount > 1) {
-      throw new IllegalStateException(s"Method $methodName has multiple consumption annotations (@repeatable, @consumed, @unconsumed), which are mutually exclusive")
-    }
-
     // Extract all term parameters from all parameter clauses
     val termParams = method.paramClauseGroups.flatMap { group =>
       group.paramClauses.flatMap {
@@ -220,39 +196,21 @@ object OpsExtensionGenerator {
       }
     }
 
-    // Determine the receiver consumption state type
-    // @unconsumed: C (any state)
-    // @repeatable, @consumed, default: EmptyTuple (only unconsumed)
-    val receiverConsumptionType = if (isUnconsumed) "C" else "EmptyTuple"
-
-    // Determine the return value consumption state type
-    // @repeatable: EmptyTuple (unconsumed → unconsumed)
-    // @consumed or default: Tuple1[true] (unconsumed → consumed)
-    // @unconsumed: C (preserves receiver state)
-    val resultConsumptionType = if (isUnconsumed) {
-      "C"
-    } else if (isRepeatable) {
-      "EmptyTuple"
-    } else {
-      // Default or @consumed: both consume
-      "Tuple1[true]"
-    }
-
     // Build extension type parameters based on class type parameters
     val extensionTypeParams = if (typeParamDefs.isEmpty) {
-      s"[D <: Tuple, C <: Tuple]"
+      s"[D <: Tuple]"
     } else {
-      s"[${typeParamDefs.mkString(", ")}, D <: Tuple, C <: Tuple]"
+      s"[${typeParamDefs.mkString(", ")}, D <: Tuple]"
     }
 
     if (termParams.isEmpty) {
       // No parameters - just include method type parameters
       val methodTypeParamsStr = if (methodTypeParams.isEmpty) "" else s"[${methodTypeParams.mkString(", ")}]"
 
-      val methodDef = s"""def $methodName$methodTypeParamsStr(): RestrictedSelectable.Restricted[$returnType, D, $resultConsumptionType] =
-         |      self.stageCall[$returnType, D, $resultConsumptionType]("$methodName", EmptyTuple)""".stripMargin
+      val methodDef = s"""def $methodName$methodTypeParamsStr(): RestrictedSelectable.Restricted[$returnType, D] =
+         |      self.stageCall[$returnType, D]("$methodName", EmptyTuple)""".stripMargin
 
-      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
+      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D])
          |    $methodDef""".stripMargin
     } else {
       // Check each parameter for annotations
@@ -285,7 +243,7 @@ object OpsExtensionGenerator {
           Nil
         } else {
           // Everything else needs type params (tracked params, product types, @restrictedReturn types)
-          Seq(s"D${i + 1} <: Tuple", s"C${i + 1} <: Tuple")
+          Seq(s"D${i + 1} <: Tuple")
         }
       }
 
@@ -306,7 +264,7 @@ object OpsExtensionGenerator {
           s"$paramName: ${transformFunctionReturnType(paramType, i)}"
         } else {
           // Default tracked or @unrestricted product - wrap with Restricted
-          s"$paramName: RestrictedSelectable.Restricted[${paramType.toString}, D${i + 1}, C${i + 1}]"
+          s"$paramName: RestrictedSelectable.Restricted[${paramType.toString}, D${i + 1}]"
         }
       }.mkString(", ")
 
@@ -329,9 +287,9 @@ object OpsExtensionGenerator {
         s"(${termParams.map(_.name.value).mkString(", ")})"
       }
 
-      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D, $receiverConsumptionType])
-         |    def $methodName$typeParams($paramList): RestrictedSelectable.Restricted[$returnType, $resultDepType, $resultConsumptionType] =
-         |      self.stageCall[$returnType, $resultDepType, $resultConsumptionType]("$methodName", $argsTuple)""".stripMargin
+      s"""extension $extensionTypeParams(self: RestrictedSelectable.Restricted[$fullClassName, D])
+         |    def $methodName$typeParams($paramList): RestrictedSelectable.Restricted[$returnType, $resultDepType] =
+         |      self.stageCall[$returnType, $resultDepType]("$methodName", $argsTuple)""".stripMargin
     }
   }
 }
