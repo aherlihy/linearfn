@@ -1,6 +1,7 @@
 package test.casestudies
 
 import linearfn.{Multiplicity, RestrictedSelectable}
+import RestrictedSelectable.{given, *}
 import munit.FunSuite
 import test.TestUtils
 import test.casestudies.{Query, QueryOps}
@@ -614,7 +615,7 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForEachMultiplicity"), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.noGivenInstance), s"obtained: $obtained")
   }
 
   test("NEGATIVE: ForEach-Affine - using argument twice via intermediate") {
@@ -633,7 +634,7 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForEachMultiplicity"), s"obtained: $obtained")
+    assert(obtained.contains(TestUtils.noGivenInstance), s"obtained: $obtained")
   }
 
   test("NEGATIVE: ForAll-Relevant - forgetting to use an argument") {
@@ -652,7 +653,7 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForAllMultiplicity"), s"obtained: $obtained")
+    assert(obtained.contains("CheckForAll"), s"obtained: $obtained")
   }
 
   test("NEGATIVE: ForAll-Relevant - using external query instead") {
@@ -671,5 +672,5 @@ idb1(v42, v43) :- p10(v42, v43)."""
         ))
       )
     """)
-    assert(obtained.contains("CheckForAllMultiplicity"), s"obtained: $obtained")
+    assert(obtained.contains("CheckForAll"), s"obtained: $obtained")
   }

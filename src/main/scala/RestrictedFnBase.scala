@@ -40,6 +40,10 @@ trait RestrictedBase[A, D <: Tuple]:
 
 abstract class RestrictedFnBase:
 
+  // ============================================================================
+  // Restricted: Construct and Deconstruct Restricted types
+  // ============================================================================
+
   /**
    * Restricted: Type that wraps restricted function arguments
    */
@@ -81,33 +85,12 @@ abstract class RestrictedFnBase:
       case EmptyTuple => EmptyTuple
       case h *: tail => executeNested(h) *: tupleExecute(tail)
 
-
-  // Helper match type to extract inner type and dependencies from potentially nested containers
-  // Returns (innermost_type, dependencies)
-  // This is the PRIMARY place to add new container types for lifting support
-  type LiftInnerType[T] = T match
-    case Restricted[a, d] => (a, d)
-    case List[inner] => LiftInnerType[inner] match
-      case (a, d) => (List[a], d)
-    case Option[inner] => LiftInnerType[inner] match
-      case (a, d) => (Option[a], d)
-    case Vector[inner] => LiftInnerType[inner] match
-      case (a, d) => (Vector[a], d)
-
   // Construct restricted types from arguments
   // Converts argument to Restricted types with single-element dependency tuples
   // Each argument gets a unique index: arg0 → (0), arg1 → (1), etc.
   type ToRestrictedRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
     case (elem, index) => Restricted[elem, Tuple1[index]]
   ]
-
-  // If any return has duplicates (true), compilation fails
-  // Example: (a, a) has duplicates → false; (a, b) has no duplicates → true
-  type InverseMapDeps[RQT <: Tuple] <: Tuple = RQT match {
-    case EmptyTuple => EmptyTuple
-    case h *: t => LiftInnerType[h] match
-      case (_, d) => HasDuplicate[d] *: InverseMapDeps[t]
-  }
 
   // Used to construct the Restricted types returned by the function
   // RT is the return tuple, DT is the tuple of dependency tuples
@@ -128,21 +111,18 @@ abstract class RestrictedFnBase:
     case (Vector[a], d) => ReconstructRestricted[Vector[a], d]
     case (a, d) => Restricted[a, d]
 
-//  // Recursively extract dependencies from nested containers
-//  // Note: This uses a different recursion pattern than LiftInnerType
-  type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[_, d] => d
-    case List[inner] => ExtractDependencies[inner]
-    case Option[inner] => ExtractDependencies[inner]
-    case Vector[inner] => ExtractDependencies[inner]
 
-  // Check that all arguments are used somewhere
-  // ExpectedResult: Union of all argument indices {0, 1, 2, ...}
-  // ActualResult: Union of all dependencies actually used across all returns
-  // Constraint: ExpectedResult <:< ActualResult ensures every arg appears at least once
-  // Example: args=(a,b), returns=(a,a) → ActualResult={0}, ExpectedResult={0,1} → FAIL (b unused)
-  type ExpectedResult[AT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[AT]]]
-  type ActualResult[RQT <: Tuple] = Tuple.Union[Tuple.FlatMap[RQT, ExtractDependencies]]
+  // Helper match type to extract inner type and dependencies from potentially nested containers
+  // Returns (innermost_type, dependencies)
+  // This is the PRIMARY place to add new container types for lifting support
+  type LiftInnerType[T] = T match
+    case Restricted[a, d] => (a, d)
+    case List[inner] => LiftInnerType[inner] match
+      case (a, d) => (List[a], d)
+    case Option[inner] => LiftInnerType[inner] match
+      case (a, d) => (Option[a], d)
+    case Vector[inner] => LiftInnerType[inner] match
+      case (a, d) => (Vector[a], d)
 
   // Extract the wrapped type of a Restricted type
   type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
@@ -161,108 +141,103 @@ abstract class RestrictedFnBase:
     case Restricted[a, d] => Tuple.Concat[d, D]
     case _ => D
 
-  // Helper: Check for-all-relevant (all args used at least once across all returns)
-  // Returns true if constraint is satisfied (all args used)
-  type CheckForAllRelevant[AT <: Tuple, RQT <: Tuple] =
-    ExpectedResult[AT] <:< ActualResult[RQT]
+  // ============================================================================
+  // Constraint Checks - Core logic that works on a single dependency tuple
+  // ============================================================================
 
-  // Helper: Check for-all-affine (no arg used more than once total)
-  // Count total uses of each argument across all returns
-  type CheckForAllAffine[AT <: Tuple, RQT <: Tuple] =
-    AllArgsUsedAtMostOnceTotal[GenerateIndices[0, Tuple.Size[AT]], RQT]
+  // Check if all required indices appear in dependencies
+  type CheckRelevant[Indices <: Tuple, Deps <: Tuple] =
+    Tuple.Union[Indices] <:< Tuple.Union[Deps]
 
-  type AllArgsUsedAtMostOnceTotal[Indices <: Tuple, RQT <: Tuple] <: Boolean = Indices match
-    case EmptyTuple => true
-    case idx *: rest =>
-      CountArgUsesInAllReturns[idx, RQT] match
-        case 0 => AllArgsUsedAtMostOnceTotal[rest, RQT]
-        case 1 => AllArgsUsedAtMostOnceTotal[rest, RQT]
-        case _ => false
+  // Check if dependencies have no duplicates
+  type CheckAffine[Deps <: Tuple] =
+    HasDuplicate[Deps] =:= Deps
 
-  // Collect all occurrences of Idx across all returns as a tuple, then count with Tuple.Size
-  type CountArgUsesInAllReturns[Idx, RQT <: Tuple] =
-    Tuple.Size[CollectArgUsesInAllReturns[Idx, RQT]]
+  // ============================================================================
+  // ForAll: Flatten all dependencies, then check once
+  // ============================================================================
 
-  type CollectArgUsesInAllReturns[Idx, RQT <: Tuple] <: Tuple = RQT match
+  // Helper: Flatten all dependencies into a single tuple
+  type FlattenAllDependencies[RQT <: Tuple] <: Tuple = RQT match
     case EmptyTuple => EmptyTuple
-    case h *: t =>
-      Tuple.Concat[
-        CollectArgUsesInReturn[Idx, h],
-        CollectArgUsesInAllReturns[Idx, t]
-      ]
+    case h *: tail => LiftInnerType[h] match
+      case (_, d) => Tuple.Concat[d, FlattenAllDependencies[tail]]
 
-  type CollectArgUsesInReturn[Idx, R] <: Tuple = LiftInnerType[R] match
-    case (_, d) => CollectOccurrences[Idx, d]
+  type CheckForAll[M <: Multiplicity, AT <: Tuple, RQT <: Tuple] = M match
+    case Multiplicity.Linear =>
+      (CheckRelevant[GenerateIndices[0, Tuple.Size[AT]], FlattenAllDependencies[RQT]],
+       CheckAffine[FlattenAllDependencies[RQT]])
+    case Multiplicity.Affine =>
+      CheckAffine[FlattenAllDependencies[RQT]]
+    case Multiplicity.Relevant =>
+      CheckRelevant[GenerateIndices[0, Tuple.Size[AT]], FlattenAllDependencies[RQT]]
+    case Multiplicity.Unrestricted => true
 
-  // Collect all occurrences of Elem in tuple T as a tuple of Units
-  type CollectOccurrences[Elem, T <: Tuple] <: Tuple = T match
+  // ============================================================================
+  // ForEach: Check each dependency tuple separately
+  // ============================================================================
+
+  type CheckForEach[M <: Multiplicity, AT <: Tuple, RQT <: Tuple] = M match
+    case Multiplicity.Linear =>
+      CheckEach[GenerateIndices[0, Tuple.Size[AT]], ExtractDependencyTypes[RQT], true, true]
+    case Multiplicity.Affine =>
+      CheckEach[GenerateIndices[0, Tuple.Size[AT]], ExtractDependencyTypes[RQT], false, true]
+    case Multiplicity.Relevant =>
+      CheckEach[GenerateIndices[0, Tuple.Size[AT]], ExtractDependencyTypes[RQT], true, false]
+    case Multiplicity.Unrestricted => true
+
+  // Helper: Iterate over each dependency tuple and check constraints
+  // needRelevant = check that all indices are present
+  // needAffine = check that there are no duplicates
+  type CheckEach[
+    Indices <: Tuple,
+    DepTuples <: Tuple,
+    NeedRelevant <: Boolean,
+    NeedAffine <: Boolean
+  ] <: Tuple = DepTuples match
     case EmptyTuple => EmptyTuple
-    case Elem *: tail => Unit *: CollectOccurrences[Elem, tail]
-    case _ *: tail => CollectOccurrences[Elem, tail]
+    case deps *: rest =>
+      CheckOne[Indices, deps, NeedRelevant, NeedAffine] *: CheckEach[Indices, rest, NeedRelevant, NeedAffine]
 
-  // Count occurrences by collecting them as a tuple, then taking size
-  type CountOccurrences[Elem, T <: Tuple] =
-    Tuple.Size[CollectOccurrences[Elem, T]]
+  // Check a single dependency tuple based on flags
+  type CheckOne[
+    Indices <: Tuple,
+    Deps <: Tuple,
+    NeedRelevant <: Boolean,
+    NeedAffine <: Boolean
+  ] = (NeedRelevant, NeedAffine) match
+    case (true, true) => (CheckRelevant[Indices, Deps], CheckAffine[Deps])
+    case (true, false) => CheckRelevant[Indices, Deps]
+    case (false, true) => CheckAffine[Deps]
+    case (false, false) => true
 
-  // Helper: Check for-each-affine (no duplicates in any single return)
-  type CheckForEachAffine[RQT <: Tuple] =
-    InverseMapDeps[RQT] =:= ExtractDependencyTypes[RQT]  // This already checks for duplicates
-
-  // Helper: Check for-each-relevant (all args in every return)
-  type CheckForEachRelevant[AT <: Tuple, RQT <: Tuple] =
-    AllReturnsContainAllArgs[GenerateIndices[0, Tuple.Size[AT]], RQT]
-
-  type AllReturnsContainAllArgs[Indices <: Tuple, RQT <: Tuple] <: Boolean = RQT match
-    case EmptyTuple => true
-    case h *: t =>
-      ReturnContainsAllIndices[Indices, h] match
-        case true => AllReturnsContainAllArgs[Indices, t]
-        case false => false
-
-  type ReturnContainsAllIndices[Indices <: Tuple, R] <: Boolean = LiftInnerType[R] match
-    case (_, d) => AllIndicesInDeps[Indices, d]
-
-  type AllIndicesInDeps[Indices <: Tuple, D <: Tuple] <: Boolean = Indices match
-    case EmptyTuple => true
-    case idx *: rest =>
-      Tuple.Contains[D, idx] match
-        case true => AllIndicesInDeps[rest, D]
-        case false => false
+  // ============================================================================
+  // Top-level constraint checks
+  // ============================================================================
 
   // Given instance for true - used when Unrestricted multiplicity bypasses constraints
   given trueEvidence: true = true
 
-  // Given instance for tuple constraints - used when CheckForEachLinear returns a tuple
+  // Given instance for tuple constraints - used when CheckLinear returns a tuple
   given tupleEvidence[A, B](using A, B): (A, B) = (summon[A], summon[B])
 
-  // Helper: Check for-all-linear (each arg used exactly once total = relevant + affine)
-  type CheckForAllLinear[AT <: Tuple, RQT <: Tuple] =
-    (CheckForAllRelevant[AT, RQT], CheckForAllAffine[AT, RQT])
+  // Given instance for general tuples - used for ForEach checks that return tuple of evidences
+  given emptyTupleEvidence: EmptyTuple = EmptyTuple
+  given consTupleEvidence[H, T <: Tuple](using H, T): (H *: T) = summon[H] *: summon[T]
 
   // Check ForAll multiplicity constraint (across all returns)
   type CheckForAllMultiplicity[
     ForAllM <: Multiplicity,
     AT <: Tuple,
     RQT <: Tuple
-  ] = ForAllM match
-    case Multiplicity.Linear => CheckForAllLinear[AT, RQT]    // Must appear exactly once total (relevant + affine)
-    case Multiplicity.Affine => CheckForAllAffine[AT, RQT]    // Can appear at most once total
-    case Multiplicity.Relevant => CheckForAllRelevant[AT, RQT] // Must appear at least once total
-    case Multiplicity.Unrestricted => true                     // No constraint (always satisfied)
+  ] = CheckForAll[ForAllM, AT, RQT]
 
   // Check ForEach multiplicity constraint (per individual return)
   type CheckForEachMultiplicity[
     ForEachM <: Multiplicity,
     AT <: Tuple,
     RQT <: Tuple
-  ] = ForEachM match
-    case Multiplicity.Linear => CheckForEachLinear[AT, RQT]       // Each return: exactly once (relevant + affine)
-    case Multiplicity.Affine => CheckForEachAffine[RQT]           // Each return: at most once
-    case Multiplicity.Relevant => CheckForEachRelevant[AT, RQT]       // Each return: at least once
-    case Multiplicity.Unrestricted => true                            // No constraint (always satisfied)
-
-  type CheckForEachLinear[AT <: Tuple, RQT <: Tuple] =
-    (CheckForEachRelevant[AT, RQT], CheckForEachAffine[RQT])
+  ] = CheckForEach[ForEachM, AT, RQT]
 
   // ============================================================================
   // RestrictedFn Methods: Combining Vertical and Horizontal Constraints
@@ -287,7 +262,7 @@ abstract class RestrictedFnBase:
     object LinearFnBuilder:
       // Builder for ComposedConnective - enforces custom connective constraints
       given connectiveBuilder[
-        M <: Multiplicity,
+        M <: Multiplicity, // function-wide multiplicity
         AT <: Tuple,    // args types
         RQT <: Tuple,   // return types (restricted)
         ForEachM <: Multiplicity,
@@ -337,9 +312,9 @@ abstract class RestrictedFnBase:
         ev1b: DT =:= ExtractDependencyTypes[RQT],
         ev3: RQT =:= ToRestricted[RT, DT],
         @implicitNotFound(ErrorMsg.compositionForAllFailed)
-        evForAllRelevant: ExpectedResult[AT] <:< ActualResult[RQT],
+        evForAllRelevant: CheckRelevant[GenerateIndices[0, Tuple.Size[AT]], FlattenAllDependencies[RQT]],
         @implicitNotFound(ErrorMsg.compositionForEachFailed)
-        evForAllAffine: AllArgsUsedAtMostOnceTotal[GenerateIndices[0, Tuple.Size[AT]], RQT] =:= true
+        evForAllAffine: CheckAffine[FlattenAllDependencies[RQT]]
     ): ExtractResultTypes[RQT] = {
       val argsRefs = args.toArray.map(a => makeRestrictedRef(() => a))
       val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
