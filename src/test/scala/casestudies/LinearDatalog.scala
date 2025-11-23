@@ -45,17 +45,14 @@ object Expr:
 
 /**
  * DatalogConnective: Type alias for the connective used in linear datalog.
- * - ForEach = Affine: each argument can appear at most once per return value
- * - ForAll = Relevant: each argument must appear at least once across all returns
- *
+ * RQT (wrapped tuple) is the tuple of restricted values.
  * DT (dependency tuple) is inferred from the actual dependencies in the composed values.
  */
-type DatalogConnective[RT <: Tuple, DT <: Tuple] = RestrictedSelectable.ComposedConnective[RT, DT, Multiplicity.Affine, Multiplicity.Relevant]
+type DatalogConnective[RQT <: Tuple] = RestrictedSelectable.ComposedConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant]
 object DatalogConnective:
-  inline def apply[RT <: Tuple, DT <: Tuple]
-  (values: RT)
-  (using ev: DT =:= RestrictedSelectable.ExtractDependencyTypes[RT]): DatalogConnective[RT, DT] =
-    RestrictedSelectable.ComposedConnective[RT, DT, Multiplicity.Affine, Multiplicity.Relevant](values)
+  def apply[RQT <: Tuple](values: RQT) =
+//  (using ev: DT =:= RestrictedSelectable.ExtractDependencyTypes[RT]): DatalogConnective[RT, DT] =
+    RestrictedSelectable.ComposedConnective[RQT, Multiplicity.Affine, Multiplicity.Relevant](values)
 // Query-level AST
 @ops
 class Query[A]():
@@ -139,26 +136,26 @@ object Query:
    * - Same number of arguments and returns (strictness)
    * - Return types match argument types (type safety for recursive fixed-point)
    */
-  def fixedPoint[QT <: Tuple, RT <: Tuple, DT <: Tuple](
+  def fixedPoint[QT <: Tuple, RQT <: Tuple, DT <: Tuple](
     bases: QT
-  )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, DatalogConnective[RT, DT]])(
+  )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, DatalogConnective[RQT]])(
     using
       builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
         Multiplicity.Affine,
         QT,
-        DatalogConnective[RT, DT]
+        DatalogConnective[RQT]
       ],
       @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnLengthFailed)
-      evStrict: Tuple.Size[RT] =:= Tuple.Size[QT],
+      evStrict: Tuple.Size[RQT] =:= Tuple.Size[QT],
       @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnTypesFailed)
-      evReturnTypes: ExtractQueryRowTypes[RestrictedSelectable.ExtractResultTypes[RT]] =:= ExtractQueryRowTypes[QT]
+      evReturnTypes: ExtractQueryRowTypes[RestrictedSelectable.ExtractResultTypes[RQT]] =:= ExtractQueryRowTypes[QT]
   ): QT = {
     val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))
     val restrictedRefs = argsRefs.map(a => RestrictedSelectable.makeRestrictedRef(() => a)).toArray
-    val refsTuple = Tuple.fromArray(restrictedRefs).asInstanceOf[RestrictedSelectable.ToRestrictedRef[QT]]
-    val exec = fns(refsTuple)
-    val evaluatedT = exec.execute()  // Execute the composed connective to get the tuple of results
-    val unioned = bases.toArray.zip(evaluatedT.toArray).map { (baseQ, evalQ) =>
+    val restrictedRefsTuple = Tuple.fromArray(restrictedRefs).asInstanceOf[RestrictedSelectable.ToRestrictedRef[QT]]
+    val resultConnective = fns(restrictedRefsTuple)
+    val evaluated = resultConnective.execute()  // Execute the composed connective to get the tuple of results
+    val unioned = bases.toArray.zip(evaluated.toArray).map { (baseQ, evalQ) =>
       baseQ.asInstanceOf[Query[Any]].union(evalQ.asInstanceOf[Query[Any]])
     }
     val predicates = argsRefs.zip(unioned).toMap

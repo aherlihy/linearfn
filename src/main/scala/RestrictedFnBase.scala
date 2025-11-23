@@ -1,6 +1,6 @@
 package linearfn
 
-import Utils.*
+import linearfn.Utils.*
 import scala.annotation.implicitNotFound
 
 // ============================================================================
@@ -33,141 +33,37 @@ object Multiplicity:
 
 /**
  * Abstract base for all RestrictedFn implementations.
- *
- * This class implements the core logic for enforcing substructural constraints:
- *
- * HORIZONTAL LINEARITY (Cross-argument Dependency Tracking - D Parameter):
- *    - Tracks how multiple arguments are distributed across return values
- *    - D contains indices of input arguments this value depends on (e.g., (0, 1))
- *    - Constraint: FOR-ALL-RELEVANT + FOR-EACH-AFFINE:
- *      * For-all-relevant: Each argument must appear ≥1 times across all returns (ExpectedResult <:< ActualResult)
- *      * For-each-affine: Each argument can appear ≤1 time per return (InverseMapDeps checks for duplicates)
- *
- * The combination enables:
- * - (a, b) → (a, b) ✓ (each used once)
- * - (a, b) → (a, b, a) ✓ (a used in multiple returns, but ≤1 per return)
- * - (a, b) → (a+b, x) ✓ (both used in first return)
- * - (a, b) → (a, a) ✗ (b unused - violates for-all-relevant)
- * - (a, b) → (a+a, b) ✗ (a used twice in first return - violates for-each-affine)
- *
  */
-// Base trait that all Restricted implementations must extend
-// This allows runtime type checking in the abstract base class
+
 trait RestrictedBase[A, D <: Tuple]:
   def execute(): A
 
 abstract class RestrictedFnBase:
 
-  // Abstract type with upper bound constraint
-  // All implementations must extend RestrictedBase
+  /**
+   * Restricted: Type that wraps restricted function arguments
+   */
   type Restricted[A, D <: Tuple] <: RestrictedBase[A, D]
 
   /**
    * ComposedConnective: The result of composing Restricted values with a CustomConnective.
-   * This is what gets returned from connective.compose().
    */
   case class ComposedConnective[
-    RT <: Tuple,
-    DT <: Tuple,
+    RQT <: Tuple,
     ForEachM <: Multiplicity,
     ForAllM <: Multiplicity
   ](
-    values: RT
-  ) extends RestrictedBase[Tuple, DT]:
-    def execute(): Tuple =
-      tupleExecute(values)
+    values: RQT
+  ) extends RestrictedBase[ExtractResultTypes[RQT], ExtractDependencyTypes[RQT]]:
+    def execute(): ExtractResultTypes[RQT] =
+      tupleExecute(values).asInstanceOf[ExtractResultTypes[RQT]]
 
   // Factory method for creating RestrictedRef instances
   protected def makeRestrictedRef[A, D <: Tuple](fn: () => A): Restricted[A, D]
 
-  // Execute a Restricted value
+  // Unwrap a Restricted value
   protected def executeRestricted[A, D <: Tuple](r: Restricted[A, D]): A =
     r.execute()
-
-  // Helper match type to extract inner type and dependencies from potentially nested containers
-  // Returns (innermost_type, dependencies)
-  // This is the PRIMARY place to add new container types for lifting support
-  type LiftInnerType[T] = T match
-    case Restricted[a, d] => (a, d)
-    case ComposedConnective[rt, dt, forEachM, forAllM] => (Tuple, dt)
-    case List[inner] => LiftInnerType[inner] match
-      case (a, d) => (List[a], d)
-    case Option[inner] => LiftInnerType[inner] match
-      case (a, d) => (Option[a], d)
-    case Vector[inner] => LiftInnerType[inner] match
-      case (a, d) => (Vector[a], d)
-
-  // Common match types
-  // ============================================================================
-  // HORIZONTAL LINEARITY: Dependency Tracking (D Parameter)
-  // ============================================================================
-
-  // Convert argument tuple to RestrictedRefs with single-element dependency tuples
-  // Each argument gets a unique index: arg0 → (0), arg1 → (1), etc.
-  type ToRestrictedRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
-    case (elem, index) => Restricted[elem, Tuple1[index]]
-  ]
-
-  // FOR-EACH-AFFINE CONSTRAINT: Check that each return value is affine
-  // Maps each return to a Boolean indicating if it has duplicate dependencies
-  // If any return has duplicates (true), compilation fails
-  // Example: (a, a) has duplicates → false; (a, b) has no duplicates → true
-  type InverseMapDeps[RT <: Tuple] <: Tuple = RT match {
-    case EmptyTuple => EmptyTuple
-    case h *: t => LiftInnerType[h] match
-      case (_, d) => HasDuplicate[d] *: InverseMapDeps[t]
-  }
-
-  type ToRestricted[AT <: Tuple, DT <: Tuple] =
-    Tuple.Map[Tuple.Zip[AT, DT], [T] =>> ConstructRestricted[T]]
-
-  // Recursive helper to reconstruct nested Restricted types
-  type ReconstructRestricted[A, D <: Tuple] = A match
-    case List[inner] => List[ReconstructRestricted[inner, D]]
-    case Option[inner] => Option[ReconstructRestricted[inner, D]]
-    case Vector[inner] => Vector[ReconstructRestricted[inner, D]]
-    case _ => Restricted[A, D]
-
-  type ConstructRestricted[T] = T match
-    // Automatic lifting: construct containers of Restricted types (must come BEFORE general case)
-    case (List[a], d) => ReconstructRestricted[List[a], d]
-    case (Option[a], d) => ReconstructRestricted[Option[a], d]
-    case (Vector[a], d) => ReconstructRestricted[Vector[a], d]
-    case (a, d) => Restricted[a, d]
-
-  // Recursively extract dependencies from nested containers
-  // Note: This uses a different recursion pattern than LiftInnerType
-  type ExtractDependencies[D] <: Tuple = D match
-    case Restricted[_, d] => d
-    case List[inner] => ExtractDependencies[inner]
-    case Option[inner] => ExtractDependencies[inner]
-    case Vector[inner] => ExtractDependencies[inner]
-
-  // FOR-ALL-RELEVANT CONSTRAINT: Check that all arguments are used somewhere
-  // ExpectedResult: Union of all argument indices {0, 1, 2, ...}
-  // ActualResult: Union of all dependencies actually used across all returns
-  // Constraint: ExpectedResult <:< ActualResult ensures every arg appears at least once
-  // Example: args=(a,b), returns=(a,a) → ActualResult={0}, ExpectedResult={0,1} → FAIL (b unused)
-  type ExpectedResult[QT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[QT]]]
-  type ActualResult[RT <: Tuple] = Tuple.Union[Tuple.FlatMap[RT, ExtractDependencies]]
-
-  type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
-    case EmptyTuple => EmptyTuple
-    case h *: tail => LiftInnerType[h] match
-      case (a, _) => a *: ExtractResultTypes[tail]
-
-  type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
-    case EmptyTuple => EmptyTuple
-    case h *: tail => LiftInnerType[h] match
-      case (_, d) => d *: ExtractDependencyTypes[tail]
-
-  type CollateDeps[A, D <: Tuple] <: Tuple = A match
-    case Restricted[a, d] => Tuple.Concat[d, D]
-    case _ => D
-
-  type CollateAllDeps[A <: Tuple, D <: Tuple] <: Tuple = A match
-    case EmptyTuple => D
-    case h *: t => CollateAllDeps[t, CollateDeps[h, D]]
 
   // Helper to recursively execute Restricted values inside nested containers
   // We can check against RestrictedBase since all Restricted types must extend it
@@ -184,6 +80,86 @@ abstract class RestrictedFnBase:
     t match
       case EmptyTuple => EmptyTuple
       case h *: tail => executeNested(h) *: tupleExecute(tail)
+
+
+  // Helper match type to extract inner type and dependencies from potentially nested containers
+  // Returns (innermost_type, dependencies)
+  // This is the PRIMARY place to add new container types for lifting support
+  type LiftInnerType[T] = T match
+    case Restricted[a, d] => (a, d)
+    case List[inner] => LiftInnerType[inner] match
+      case (a, d) => (List[a], d)
+    case Option[inner] => LiftInnerType[inner] match
+      case (a, d) => (Option[a], d)
+    case Vector[inner] => LiftInnerType[inner] match
+      case (a, d) => (Vector[a], d)
+
+  // Construct restricted types from arguments
+  // Converts argument to Restricted types with single-element dependency tuples
+  // Each argument gets a unique index: arg0 → (0), arg1 → (1), etc.
+  type ToRestrictedRef[AT <: Tuple] = Tuple.Map[ZipWithIndex[AT], [T] =>> T match
+    case (elem, index) => Restricted[elem, Tuple1[index]]
+  ]
+
+  // If any return has duplicates (true), compilation fails
+  // Example: (a, a) has duplicates → false; (a, b) has no duplicates → true
+  type InverseMapDeps[RQT <: Tuple] <: Tuple = RQT match {
+    case EmptyTuple => EmptyTuple
+    case h *: t => LiftInnerType[h] match
+      case (_, d) => HasDuplicate[d] *: InverseMapDeps[t]
+  }
+
+  // Used to construct the Restricted types returned by the function
+  // RT is the return tuple, DT is the tuple of dependency tuples
+  type ToRestricted[RT <: Tuple, DT <: Tuple] =
+    Tuple.Map[Tuple.Zip[RT, DT], [T] =>> ConstructRestricted[T]]
+
+  // Recursive helper to reconstruct nested Restricted types
+  type ReconstructRestricted[A, D <: Tuple] = A match
+    case List[inner] => List[ReconstructRestricted[inner, D]]
+    case Option[inner] => Option[ReconstructRestricted[inner, D]]
+    case Vector[inner] => Vector[ReconstructRestricted[inner, D]]
+    case _ => Restricted[A, D]
+
+  type ConstructRestricted[T] = T match
+    // Automatic lifting: construct containers of Restricted types (must come BEFORE general case)
+    case (List[a], d) => ReconstructRestricted[List[a], d]
+    case (Option[a], d) => ReconstructRestricted[Option[a], d]
+    case (Vector[a], d) => ReconstructRestricted[Vector[a], d]
+    case (a, d) => Restricted[a, d]
+
+//  // Recursively extract dependencies from nested containers
+//  // Note: This uses a different recursion pattern than LiftInnerType
+  type ExtractDependencies[D] <: Tuple = D match
+    case Restricted[_, d] => d
+    case List[inner] => ExtractDependencies[inner]
+    case Option[inner] => ExtractDependencies[inner]
+    case Vector[inner] => ExtractDependencies[inner]
+
+  // Check that all arguments are used somewhere
+  // ExpectedResult: Union of all argument indices {0, 1, 2, ...}
+  // ActualResult: Union of all dependencies actually used across all returns
+  // Constraint: ExpectedResult <:< ActualResult ensures every arg appears at least once
+  // Example: args=(a,b), returns=(a,a) → ActualResult={0}, ExpectedResult={0,1} → FAIL (b unused)
+  type ExpectedResult[AT <: Tuple] = Tuple.Union[GenerateIndices[0, Tuple.Size[AT]]]
+  type ActualResult[RQT <: Tuple] = Tuple.Union[Tuple.FlatMap[RQT, ExtractDependencies]]
+
+  // Extract the wrapped type of a Restricted type
+  type ExtractResultTypes[RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case h *: tail => LiftInnerType[h] match
+      case (a, _) => a *: ExtractResultTypes[tail]
+
+  // Extract the dependencies of a Restricted type
+  type ExtractDependencyTypes[RQT <: Tuple] <: Tuple = RQT match
+    case EmptyTuple => EmptyTuple
+    case h *: tail => LiftInnerType[h] match
+      case (_, d) => d *: ExtractDependencyTypes[tail]
+
+  // Combine dependencies of a Restricted type A and a dependency tuple D
+  type CollateDeps[A, D <: Tuple] <: Tuple = A match
+    case Restricted[a, d] => Tuple.Concat[d, D]
+    case _ => D
 
   // Helper: Check for-all-relevant (all args used at least once across all returns)
   // Returns true if constraint is satisfied (all args used)
@@ -229,14 +205,14 @@ abstract class RestrictedFnBase:
     Tuple.Size[CollectOccurrences[Elem, T]]
 
   // Helper: Check for-each-affine (no duplicates in any single return)
-  type CheckForEachAffine[DT <: Tuple, RQT <: Tuple] =
-    InverseMapDeps[RQT] =:= DT  // This already checks for duplicates
+  type CheckForEachAffine[RQT <: Tuple] =
+    InverseMapDeps[RQT] =:= ExtractDependencyTypes[RQT]  // This already checks for duplicates
 
   // Helper: Check for-each-relevant (all args in every return)
-  type CheckForEachRelevant[AT <: Tuple, RT <: Tuple] =
-    AllReturnsContainAllArgs[GenerateIndices[0, Tuple.Size[AT]], RT]
+  type CheckForEachRelevant[AT <: Tuple, RQT <: Tuple] =
+    AllReturnsContainAllArgs[GenerateIndices[0, Tuple.Size[AT]], RQT]
 
-  type AllReturnsContainAllArgs[Indices <: Tuple, RT <: Tuple] <: Boolean = RT match
+  type AllReturnsContainAllArgs[Indices <: Tuple, RQT <: Tuple] <: Boolean = RQT match
     case EmptyTuple => true
     case h *: t =>
       ReturnContainsAllIndices[Indices, h] match
@@ -249,23 +225,27 @@ abstract class RestrictedFnBase:
   type AllIndicesInDeps[Indices <: Tuple, D <: Tuple] <: Boolean = Indices match
     case EmptyTuple => true
     case idx *: rest =>
-      Contains[idx, D] match
+      Tuple.Contains[D, idx] match
         case true => AllIndicesInDeps[rest, D]
         case false => false
 
-  type Contains[Elem, T <: Tuple] <: Boolean = T match
-    case EmptyTuple => false
-    case Elem *: _ => true
-    case _ *: tail => Contains[Elem, tail]
+  // Given instance for true - used when Unrestricted multiplicity bypasses constraints
+  given trueEvidence: true = true
+
+  // Given instance for tuple constraints - used when CheckForEachLinear returns a tuple
+  given tupleEvidence[A, B](using A, B): (A, B) = (summon[A], summon[B])
+
+  // Helper: Check for-all-linear (each arg used exactly once total = relevant + affine)
+  type CheckForAllLinear[AT <: Tuple, RQT <: Tuple] =
+    (CheckForAllRelevant[AT, RQT], CheckForAllAffine[AT, RQT])
 
   // Check ForAll multiplicity constraint (across all returns)
   type CheckForAllMultiplicity[
     ForAllM <: Multiplicity,
     AT <: Tuple,
-    RT <: Tuple,
     RQT <: Tuple
   ] = ForAllM match
-    case Multiplicity.Linear => CheckForAllRelevant[AT, RQT]  // Must appear exactly once total (=relevant + affine)
+    case Multiplicity.Linear => CheckForAllLinear[AT, RQT]    // Must appear exactly once total (relevant + affine)
     case Multiplicity.Affine => CheckForAllAffine[AT, RQT]    // Can appear at most once total
     case Multiplicity.Relevant => CheckForAllRelevant[AT, RQT] // Must appear at least once total
     case Multiplicity.Unrestricted => true                     // No constraint (always satisfied)
@@ -274,19 +254,15 @@ abstract class RestrictedFnBase:
   type CheckForEachMultiplicity[
     ForEachM <: Multiplicity,
     AT <: Tuple,
-    DT <: Tuple,
-    RT <: Tuple,
     RQT <: Tuple
   ] = ForEachM match
-    case Multiplicity.Linear => CheckForEachLinear[AT, DT, RT, RQT]  // Each return: exactly once (relevant + affine)
-    case Multiplicity.Affine => CheckForEachAffine[DT, RQT]          // Each return: at most once
-    case Multiplicity.Relevant => CheckForEachRelevant[AT, RT]       // Each return: at least once
+    case Multiplicity.Linear => CheckForEachLinear[AT, RQT]       // Each return: exactly once (relevant + affine)
+    case Multiplicity.Affine => CheckForEachAffine[RQT]           // Each return: at most once
+    case Multiplicity.Relevant => CheckForEachRelevant[AT, RQT]       // Each return: at least once
     case Multiplicity.Unrestricted => true                            // No constraint (always satisfied)
 
-  // Helper: Check for-each-linear (each arg in every return, no duplicates per return)
-  // This is the conjunction of for-each-relevant AND for-each-affine
-  type CheckForEachLinear[AT <: Tuple, DT <: Tuple, RT <: Tuple, RQT <: Tuple] =
-    (CheckForEachRelevant[AT, RT], CheckForEachAffine[DT, RQT])
+  type CheckForEachLinear[AT <: Tuple, RQT <: Tuple] =
+    (CheckForEachRelevant[AT, RQT], CheckForEachAffine[RQT])
 
   // ============================================================================
   // RestrictedFn Methods: Combining Vertical and Horizontal Constraints
@@ -301,28 +277,34 @@ abstract class RestrictedFnBase:
      */
     type LinearFn[AT <: Tuple, RQT] = ToRestrictedRef[AT] => RQT
 
+    type ExtractReturnType[CustomConnective] = CustomConnective match
+      case ComposedConnective[rqt, forEachM, forAllM] =>
+        ExtractResultTypes[rqt]
+
     trait LinearFnBuilder[M <: Multiplicity, AT <: Tuple, CustomConnective]:
-      def execute(args: AT)(fns: LinearFn[AT, CustomConnective]): CustomConnective
+      def execute(args: AT)(fns: LinearFn[AT, CustomConnective]): ExtractReturnType[CustomConnective]
 
     object LinearFnBuilder:
       // Builder for ComposedConnective - enforces custom connective constraints
       given connectiveBuilder[
         M <: Multiplicity,
-        AT <: Tuple,
-        RT <: Tuple,
-        DT <: Tuple,
+        AT <: Tuple,    // args types
+        RQT <: Tuple,   // return types (restricted)
         ForEachM <: Multiplicity,
         ForAllM <: Multiplicity
       ](using
         @implicitNotFound(ErrorMsg.compositionForAllFailed)
-        evForAll: CheckForAllMultiplicity[ForAllM, AT, RT, RT],
+        evForAll: CheckForAllMultiplicity[ForAllM, AT, RQT],
         @implicitNotFound(ErrorMsg.compositionForEachFailed)
-        evForEach: CheckForEachMultiplicity[ForEachM, AT, DT, RT, RT]
-      ): LinearFnBuilder[M, AT, ComposedConnective[RT, DT, ForEachM, ForAllM]] with
-        def execute(args: AT)(fns: LinearFn[AT, ComposedConnective[RT, DT, ForEachM, ForAllM]]): ComposedConnective[RT, DT, ForEachM, ForAllM] =
-          val argsRefs = (0 until args.size).map(i => makeRestrictedRef(() => args.productElement(i).asInstanceOf[Any])).toArray
-          val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
-          fns(refsTuple)
+        evForEach: CheckForEachMultiplicity[ForEachM, AT, RQT],
+//        @implicitNotFound("DEBUG: ${RQT}") debug: RQT =:= false
+      ): LinearFnBuilder[M, AT, ComposedConnective[RQT, ForEachM, ForAllM]] with
+        def execute(args: AT)(fns: LinearFn[AT, ComposedConnective[RQT, ForEachM, ForAllM]]): ExtractResultTypes[RQT] =
+          val restrictedRefs = (0 until args.size).map(i => makeRestrictedRef(() => args.productElement(i).asInstanceOf[Any])).toArray
+          val restrictedRefsTuple= Tuple.fromArray(restrictedRefs).asInstanceOf[ToRestrictedRef[AT]]
+          val resultConnective = fns(restrictedRefsTuple)
+          val evaluated = resultConnective.execute()
+          evaluated.asInstanceOf[ExtractResultTypes[RQT]]
 
     /**
      * apply: General-purpose linear function application with configurable multiplicity.

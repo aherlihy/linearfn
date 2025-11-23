@@ -13,4 +13,5 @@ object TestUtils:
   val missingTypeClassMsg = "Cannot prove"
   val missingField = "is not a member of"
   val otherError = "match type could not be fully reduced"
+  val noGivenInstance = "No given instance of type"
 
