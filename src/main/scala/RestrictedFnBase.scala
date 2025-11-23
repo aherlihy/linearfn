@@ -298,21 +298,10 @@ abstract class RestrictedFnBase:
      * @param fns The function from restricted references to return values
      * @return The tuple of executed results
      */
-    def apply[M <: Multiplicity, AT <: Tuple, RT <: Tuple, DT <: Tuple, RQT <: Tuple](
+    def apply[M <: Multiplicity, AT <: Tuple, RT <: Tuple, ForEachM <: Multiplicity, ForAllM <: Multiplicity](
       multiplicity: M
-    )(args: AT)(fns: LinearFn[AT, RQT])(
-      using
-        ev1: RT =:= ExtractResultTypes[RQT],
-        ev1b: DT =:= ExtractDependencyTypes[RQT],
-        ev3: RQT =:= ToRestricted[RT, DT],
-        @implicitNotFound(ErrorMsg.compositionForAllFailed)
-        evForAllRelevant: CheckRelevant[GenerateIndices[0, Tuple.Size[AT]], FlattenAllDependencies[RQT]],
-        @implicitNotFound(ErrorMsg.compositionForEachFailed)
-        evForAllAffine: CheckAffine[FlattenAllDependencies[RQT]]
-    ): ExtractResultTypes[RQT] = {
-      val argsRefs = args.toArray.map(a => makeRestrictedRef(() => a))
-      val refsTuple = Tuple.fromArray(argsRefs).asInstanceOf[ToRestrictedRef[AT]]
-      val exec = fns(refsTuple)
-      tupleExecute(exec).asInstanceOf[ExtractResultTypes[RQT]]
-    }
+    )(args: AT)(fns: LinearFn[AT, ComposedConnective[RT, ForEachM, ForAllM]])(
+      using builder: LinearFnBuilder[M, AT, ComposedConnective[RT, ForEachM, ForAllM]]
+    ): ExtractResultTypes[RT] =
+      builder.execute(args)(fns)
 

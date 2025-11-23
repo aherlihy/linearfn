@@ -1,7 +1,7 @@
 package test
 
-import linearfn.ErrorMsg
-
+import linearfn.{ErrorMsg, Multiplicity }
+import linearfn.RestrictedSelectable.{given, *}
 object TestUtils:
   val substructuralConstraintFailed = ErrorMsg.substructuralContstraintFailed.split(":", 2).head
   val multiplicityConstraintFailed = ErrorMsg.multiplicityConstraintFailed.split(":", 2).head
@@ -16,7 +16,25 @@ object TestUtils:
   val noGivenInstance = "No given instance of type"
   val forAll = "ForAll"
   val forEach = "ForEach"
-  val affine = "Affine"
-  val relevant = "Relevant"
-  val linear = "Linear"
+  val affine = "Multiplicity.Affine"
+  val relevant = "Multiplicity.Relevant"
+  val linear = "Multiplicity.Linear"
+
+type ForAllLinearConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Linear]
+object ForAllLinearConnective:
+  def apply[RT <: Tuple]
+  (values: RT): ForAllLinearConnective[RT] =
+    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Linear](values)
+
+type ForAllAffineConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Affine]
+object ForAllAffineConnective:
+  def apply[RT <: Tuple]
+  (values: RT): ForAllAffineConnective[RT] =
+    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Affine](values)
+
+type ForAllRelevantConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Relevant]
+object ForAllRelevantConnective:
+  def apply[RT <: Tuple]
+  (values: RT): ForAllRelevantConnective[RT] =
+    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Relevant](values)
 

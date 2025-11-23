@@ -124,35 +124,17 @@ class ProductConnectiveFns(val s: String):
     new ProductConnectiveFns(s"${this.s} + ${other.s}")
 
 
-type ForAllLinearConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Linear]
-object ForAllLinearConnective:
-  def apply[RT <: Tuple]
-    (values: RT): ForAllLinearConnective[RT] =
-    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Linear](values)
-
 type ForEachLinearConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Linear, Multiplicity.Unrestricted]
 object ForEachLinearConnective:
   def apply[RT <: Tuple]
   (values: RT): ForEachLinearConnective[RT] =
     ComposedConnective[RT, Multiplicity.Linear, Multiplicity.Unrestricted](values)
 
-type ForAllAffineConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Affine]
-object ForAllAffineConnective:
-  def apply[RT <: Tuple]
-  (values: RT): ForAllAffineConnective[RT] =
-    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Affine](values)
-
 type ForEachAffineConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Affine, Multiplicity.Unrestricted]
 object ForEachAffineConnective:
   def apply[RT <: Tuple]
   (values: RT): ForEachAffineConnective[RT] =
     ComposedConnective[RT, Multiplicity.Affine, Multiplicity.Unrestricted](values)
-
-type ForAllRelevantConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Relevant]
-object ForAllRelevantConnective:
-  def apply[RT <: Tuple]
-  (values: RT): ForAllRelevantConnective[RT] =
-    ComposedConnective[RT, Multiplicity.Unrestricted, Multiplicity.Relevant](values)
 
 type ForEachRelevantConnective[RT <: Tuple] = ComposedConnective[RT, Multiplicity.Relevant, Multiplicity.Unrestricted]
 object ForEachRelevantConnective:

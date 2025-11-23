@@ -2,7 +2,7 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.{RestrictedSelectable}
+import linearfn.RestrictedSelectable.{given, *}
 
  /**
   * Tests for automatic lifting of nested types: T[Restricted[A, D]] => Restricted[T[A], D]
@@ -21,10 +21,10 @@ import linearfn.{RestrictedSelectable}
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
        // Create a list containing one Restricted element
        // The tuple conversion should automatically lift it
-       (List(refs._1), refs._2)
+       ForAllLinearConnective((List(refs._1), refs._2))
      )
 
      assertEquals(result._1, List(ex1))
@@ -34,9 +34,9 @@ import linearfn.{RestrictedSelectable}
    test("Option[Restricted[A, D]] is automatically lifted in 1-tuple") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Option
-       Tuple1(Option(refs._1))
+      ForAllLinearConnective(Tuple1(Option(refs._1)))
      )
 
      assertEquals(result._1, Some(ex1))
@@ -45,9 +45,9 @@ import linearfn.{RestrictedSelectable}
    test("Vector[Restricted[A, D]] is automatically lifted in 1-tuple") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Vector
-       Tuple1(Vector(refs._1))
+      ForAllLinearConnective(Tuple1(Vector(refs._1)))
      )
 
      assertEquals(result._1, Vector(ex1))
@@ -57,14 +57,14 @@ import linearfn.{RestrictedSelectable}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         (List(refs._1), List(refs._1))
+       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+         ForAllLinearConnective((List(refs._1), List(refs._1)))
        )
      """)
      // This should fail because refs._1 is used in two different lists
      // Both lists would have dependency Tuple1[0], violating linearity
      // Correct number of args (2 in, 2 out), but refs._1 used twice
-     assert(obtained.contains(TestUtils.compositionForAllFailed), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear), s"obtained: $obtained")
    }
 
    test("linearity violation: returning List and the element inside it") {
@@ -72,27 +72,27 @@ import linearfn.{RestrictedSelectable}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        val ex3 = OpsExample("Charlie", "35")
-       RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2, ex3))(refs =>
-         (List(refs._1), refs._1, refs._2)
+       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2, ex3))(refs =>
+         ForAllLinearConnective((List(refs._1), refs._1, refs._2))
        )
      """)
      // This should fail because we're returning both a List containing refs._1
      // and refs._1 itself - that's using refs._1 twice
      // Correct number of args (3 in, 3 out), but refs._1 used twice
-     assert(obtained.contains(TestUtils.compositionForAllFailed), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear), s"obtained: $obtained")
    }
 
    test("linearity violation: same ref in Option and List") {
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-         (Option(refs._1), List(refs._1))
+       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+         ForAllLinearConnective((Option(refs._1), List(refs._1)))
        )
      """)
      // This should fail because refs._1 appears in both Option and List
      // Correct number of args (2 in, 2 out), but refs._1 used twice
-     assert(obtained.contains(TestUtils.compositionForAllFailed), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear), s"obtained: $obtained")
    }
 
    test("linearity OK: different refs in different containers") {
@@ -100,8 +100,8 @@ import linearfn.{RestrictedSelectable}
      val ex2 = OpsExample("Bob", "25")
 
      // This is fine - refs._1 in first container, refs._2 in second
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
-       (List(refs._1), Option(refs._2))
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       ForAllLinearConnective((List(refs._1), Option(refs._2)))
      )
 
      assertEquals(result._1, List(ex1))
@@ -112,11 +112,11 @@ import linearfn.{RestrictedSelectable}
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
        // Create a nested list structure
        val innerList = List(refs._1)
        val nestedList = List(innerList)
-       (nestedList, refs._2)
+       ForAllLinearConnective((nestedList, refs._2))
      )
 
      assertEquals(result._1, List(List(ex1)))
@@ -126,11 +126,11 @@ import linearfn.{RestrictedSelectable}
    test("nested List[Option[Restricted[A, D]]] is automatically lifted") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // Create nested List[Option[...]]
        val opt = Option(refs._1)
        val listOfOpt = List(opt)
-       Tuple1(listOfOpt)
+       ForAllLinearConnective(Tuple1(listOfOpt))
      )
 
      assertEquals(result._1, List(Some(ex1)))
@@ -139,12 +139,12 @@ import linearfn.{RestrictedSelectable}
    test("deeply nested List[List[List[Restricted[A, D]]]] is automatically lifted") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
        // Create deeply nested structure
        val inner = List(refs._1)
        val middle = List(inner)
        val outer = List(middle)
-       Tuple1(outer)
+       ForAllLinearConnective(Tuple1(outer))
      )
 
      assertEquals(result._1, List(List(List(ex1))))
@@ -159,14 +159,14 @@ import linearfn.{RestrictedSelectable}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
          val list = List(refs._1)
-         (list, list)  // Trying to return the same list twice
+         ForAllLinearConnective((list, list))  // Trying to return the same list twice
        )
      """)
      // If lifting works correctly, both list references have dependency Tuple1[0]
      // and returning them both violates linearity
-     assert(obtained.contains(TestUtils.compositionForAllFailed), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear), s"obtained: $obtained")
    }
 
    test("unknown wrap types not ok without .lift") {
@@ -177,32 +177,32 @@ import linearfn.{RestrictedSelectable}
      def combine(other: Person): Person =
        Person(s"${this.name} & ${other.name}", this.age + other.age)
 
-   extension [D <: Tuple](p: RestrictedSelectable.Restricted[Person, D])
-     def combine[D2 <: Tuple](other: RestrictedSelectable.Restricted[Person, D2]): RestrictedSelectable.Restricted[Person, Tuple.Concat[D, D2]] =
+   extension [D <: Tuple](p: Restricted[Person, D])
+     def combine[D2 <: Tuple](other: Restricted[Person, D2]): Restricted[Person, Tuple.Concat[D, D2]] =
        p.stageCall[Person, Tuple.Concat[D, D2]]("combine", Tuple1(other))
 
    val person1 = Person("Alice", 30)
    val person2 = Person("Bob", 25)
-   val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((person1, person2))(refs =>
+   val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((person1, person2))(refs =>
      val wrapped = Wrap(refs._1.combine(refs._2))
-     (wrapped, refs._2)
+     ForAllLinearConnective((wrapped, refs._2))
    )
      """)
-     assert(obtained.contains(TestUtils.missingTypeClassMsg), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance), s"obtained: $obtained")
    }
 
    test("user-defined wrap types work with .lift and Liftable instance") {
      case class Wrap[T](v: T)
 
-     given RestrictedSelectable.Restricted.Liftable[Wrap] with
+     given Restricted.Liftable[Wrap] with
        def map[A, B](fa: Wrap[A])(f: A => B): Wrap[B] = Wrap(f(fa.v))
 
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
        val wrapped = Wrap(refs._1).lift
-       (wrapped, refs._2)
+       ForAllLinearConnective((wrapped, refs._2))
      )
 
      assertEquals(result._1.v, ex1)
@@ -212,17 +212,17 @@ import linearfn.{RestrictedSelectable}
    test("user-defined wrap types enforce linearity") {
      case class Wrap[T](v: T)
 
-     given RestrictedSelectable.Restricted.Liftable[Wrap] with
+     given Restricted.Liftable[Wrap] with
        def map[A, B](fa: Wrap[A])(f: A => B): Wrap[B] = Wrap(f(fa.v))
 
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedSelectable.RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
          val wrapped = Wrap(refs._1).lift
-         (wrapped, wrapped)  // Trying to return same wrapped value twice
+         ForAllLinearConnective((wrapped, wrapped))  // Trying to return same wrapped value twice
        )
      """)
      // Should fail because both returns depend on refs._1
-     assert(obtained.contains(TestUtils.compositionForAllFailed), s"obtained: $obtained")
+     assert(obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear), s"obtained: $obtained")
    }

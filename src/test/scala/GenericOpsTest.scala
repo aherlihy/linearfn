@@ -3,7 +3,8 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.{ops, RestrictedSelectable, Multiplicity}
+import linearfn.{ops, Multiplicity}
+import linearfn.RestrictedSelectable.{given, *}
 
 // Simple generic class to test generic type parameter support
 @ops
@@ -26,10 +27,10 @@ class GenericOpsTest extends FunSuite:
   test("generic Box[String] - get and set work") {
     val box = Box[String]("hello")
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
       val updated = refs._1.set("world")
       val value = updated.get()
-      Tuple1(value)
+      ForAllAffineConnective(Tuple1(value))
     )
 
     assertEquals(result._1, "world")
@@ -38,10 +39,10 @@ class GenericOpsTest extends FunSuite:
   test("generic Box[Int] - works with primitives after boxing fix") {
     val box = Box[Int](42)
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
       val updated = refs._1.set(100)
       val value = updated.get()
-      Tuple1(value)
+      ForAllAffineConnective(Tuple1(value))
     )
 
     assertEquals(result._1, 100)
@@ -52,12 +53,12 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - write with primitives works after boxing fix") {
     val arr = MArray[Int](new Array[Int](3))
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, 10)
       val after2 = after1.write(1, 20)
       val after3 = after2.write(2, 30)
       val frozen = after3.freeze()
-      Tuple1(frozen)
+      ForAllAffineConnective(Tuple1(frozen))
     )
 
     assertEquals(result._1.toList, List(10, 20, 30))
@@ -66,11 +67,11 @@ class GenericOpsTest extends FunSuite:
   test("MArray[String] - works with reference types") {
     val arr = MArray[String](new Array[String](2))
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, "hello")
       val after2 = after1.write(1, "world")
       val frozen = after2.freeze()
-      Tuple1(frozen)
+      ForAllAffineConnective(Tuple1(frozen))
     )
 
     assertEquals(result._1.toList, List("hello", "world"))
@@ -79,9 +80,9 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - read returns tuple with primitives") {
     val arr = MArray[Int](Array(100, 200, 300))
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
       val readResult = refs._1.read(1)
-      Tuple1(readResult)
+      ForAllAffineConnective(Tuple1(readResult))
     )
 
     val (returnedArr, readValue) = result._1
@@ -92,12 +93,12 @@ class GenericOpsTest extends FunSuite:
   test("MArray[Int] - chaining writes with primitives") {
     val arr = MArray[Int](new Array[Int](3))
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
       val final_arr = refs._1
         .write(0, 1)
         .write(1, 2)
         .write(2, 3)
-      Tuple1(final_arr.freeze())
+      ForAllAffineConnective(Tuple1(final_arr.freeze()))
     )
 
     assertEquals(result._1.toList, List(1, 2, 3))
@@ -108,10 +109,10 @@ class GenericOpsTest extends FunSuite:
     val ex1 = OpsExample("Alice", "30")
     val ex2 = OpsExample("Bob", "25")
 
-    val result = RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
       val after1 = refs._1.write(0, ex1)
       val after2 = after1.write(1, ex2)
-      Tuple1(after2.freeze())
+      ForAllAffineConnective(Tuple1(after2.freeze()))
     )
 
     assertEquals(result._1(0).name, "Alice")
@@ -127,9 +128,9 @@ class GenericOpsTest extends FunSuite:
       import MArrayOps.*
 
       val arr = MArray[Int](new Array[Int](3))
-      RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
+      RestrictedFn.apply(Multiplicity.Affine)(Tuple1(arr))(refs =>
         val after = refs._1.write(0, "not an int")  // Error: String is not Int
-        Tuple1(after.freeze())
+        ForAllAffineConnective(Tuple1(after.freeze()))
       )
     """)
     assert(
@@ -145,9 +146,9 @@ class GenericOpsTest extends FunSuite:
       import BoxOps.*
 
       val box = Box[String]("hello")
-      RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
+      RestrictedFn.apply(Multiplicity.Affine)(Tuple1(box))(refs =>
         val updated = refs._1.set(42)  // Error: Int is not String
-        Tuple1(updated.get())
+        ForAllAffineConnective(Tuple1(updated.get()))
       )
     """)
     assert(
@@ -166,9 +167,9 @@ class GenericOpsTest extends FunSuite:
       val stringArr = MArray[String](new Array[String](3))
 
       // Try to use intArr where stringArr is expected
-      RestrictedSelectable.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(intArr))(refs =>
+      RestrictedFn.apply(Multiplicity.Affine)(Tuple1(intArr))(refs =>
         val after = refs._1.write(0, "string")  // Error: can't write String to MArray[Int]
-        Tuple1(after.freeze())
+        ForAllAffineConnective(Tuple1(after.freeze()))
       )
     """)
     assert(
