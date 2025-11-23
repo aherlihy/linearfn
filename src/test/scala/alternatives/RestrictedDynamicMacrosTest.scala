@@ -13,7 +13,7 @@
 //     val obtained = compileErrors("""
 //       val str = "hello"
 //       val num = 42
-//       RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((str, num))(refs =>
+//       RestrictedDynamicMacros.RestrictedFn.apply((str, num))(refs =>
 //         (refs._1, refs._1)
 //       )
 //     """)
@@ -25,7 +25,7 @@
 //       val str = "hello"
 //       val num = 42
 //       val actual = 5
-//       val result = RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((str, num))(refs =>
+//       val result = RestrictedDynamicMacros.RestrictedFn.apply((str, num))(refs =>
 //         val tmp: RestrictedDynamicMacros.Restricted[Int, (0, 0), EmptyTuple] = RestrictedDynamicMacros.Restricted.RestrictedRef[Int, (0, 0), EmptyTuple](() => actual)
 //         (tmp, refs._1)
 //       )
@@ -38,7 +38,7 @@
 //       val str = "hello"
 //       val num = 42
 //       val actual = 5
-//       val result = RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((str, num))(refs =>
+//       val result = RestrictedDynamicMacros.RestrictedFn.apply((str, num))(refs =>
 //         val tmp: RestrictedDynamicMacros.Restricted[Int, Tuple1[0], EmptyTuple] = RestrictedDynamicMacros.Restricted.RestrictedRef[Int, Tuple1[0], EmptyTuple](() => actual)
 //         (tmp, refs._1)
 //       )
@@ -50,7 +50,7 @@
 //     val obtained = compileErrors("""
 //       val str = "hello"
 //       val num = 42
-//       RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((str, num))(refs => (refs._2 + refs._2, refs._1))
+//       RestrictedDynamicMacros.RestrictedFn.apply((str, num))(refs => (refs._2 + refs._2, refs._1))
 //     """)
 //     assert(obtained.contains(""), s"obtained: $obtained")
 //   }
@@ -60,7 +60,7 @@
 //     case class Person(name: String, age: Int)
 //     val person = Person("Alice", 30)
 //     // Field access works - just verify no runtime errors
-//     RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
+//     RestrictedDynamicMacros.RestrictedFn.apply(Tuple1(person))(refs =>
 //       val _age = refs._1.age  // This should compile and run without errors
 //       Tuple1(refs._1)
 //     )
@@ -71,7 +71,7 @@
 //     val obtained = compileErrors("""
 //       case class Person(name: String, age: Int)
 //       val person = Person("Alice", 30)
-//       RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
+//       RestrictedDynamicMacros.RestrictedFn.apply(Tuple1(person))(refs =>
 //         val x = refs._1.nonExistentField
 //         Tuple1(refs._1)
 //       )
@@ -82,7 +82,7 @@
 //   test("valid field access on primitive type") {
 //     val str = "hello"
 //     // Field access works - just verify no runtime errors
-//     RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)(Tuple1(str))(refs =>
+//     RestrictedDynamicMacros.RestrictedFn.apply(Tuple1(str))(refs =>
 //       val _len = refs._1.length  // This should compile and run without errors
 //       Tuple1(refs._1)
 //     )
@@ -96,7 +96,7 @@
 //
 //     val person1 = Person("Alice", 30)
 //     val person2 = Person("Bob", 25)
-//     val result = RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Relevant)((person1, person2))(refs =>
+//     val result = RestrictedDynamicMacros.RestrictedFn.apply((person1, person2))(refs =>
 //       (refs._1.combine(refs._2), refs._2)
 //     )
 //     assertEquals(result, (Person("Alice & Bob", 55), person2))
@@ -116,7 +116,7 @@
 //
 //       val person1 = Person("Alice", 30)
 //       val person2 = Person("Bob", 25)
-//       RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((person1, person2))(refs =>
+//       RestrictedDynamicMacros.RestrictedFn.apply((person1, person2))(refs =>
 //         val combined = refs._1.combine(refs._1)
 //         (combined, refs._2)
 //       )
@@ -137,7 +137,7 @@
 //
 //       val person1 = Person("Alice", 30)
 //       val person2 = Person("Bob", 25)
-//       RestrictedDynamicMacros.RestrictedFn.apply(Multiplicity.Linear)((person1, person2))(refs =>
+//       RestrictedDynamicMacros.RestrictedFn.apply((person1, person2))(refs =>
 //         val combined = refs._1.combine(refs._1)
 //         Tuple1(combined)
 //       )

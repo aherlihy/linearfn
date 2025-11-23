@@ -141,7 +141,6 @@ object Query:
   )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, DatalogConnective[RQT]])(
     using
       builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
-        Multiplicity.Affine,
         QT,
         DatalogConnective[RQT]
       ],

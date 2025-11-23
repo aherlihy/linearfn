@@ -178,7 +178,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForAllLinearConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Linear,
       QT,
       ForAllLinearConnective[RT]
     ]
@@ -189,7 +188,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachLinearConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Linear,
       QT,
       ForEachLinearConnective[RT]
     ]
@@ -200,7 +198,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForAllAffineConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Affine,
       QT,
       ForAllAffineConnective[RT]
     ]
@@ -211,7 +208,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachAffineConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Affine,
       QT,
       ForEachAffineConnective[RT]
     ]
@@ -222,7 +218,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForAllRelevantConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Relevant,
       QT,
       ForAllRelevantConnective[RT]
     ]
@@ -233,7 +228,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachRelevantConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Relevant,
       QT,
       ForEachRelevantConnective[RT]
     ]
@@ -244,7 +238,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllLinearConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Affine,
       QT,
       ForEachAffineForAllLinearConnective[RT]
     ]
@@ -255,7 +248,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachLinearForAllAffineConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Linear,
       QT,
       ForEachLinearForAllAffineConnective[RT]
     ]
@@ -266,7 +258,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllAffineConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Affine,
       QT,
       ForEachAffineForAllAffineConnective[RT]
     ]
@@ -277,7 +268,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachLinearForAllRelevantConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Linear,
       QT,
       ForEachLinearForAllRelevantConnective[RT]
     ]
@@ -288,7 +278,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllRelevantConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Affine,
       QT,
       ForEachAffineForAllRelevantConnective[RT]
     ]
@@ -299,7 +288,6 @@ object ProductConnectiveFns:
     bases: QT
   )(fns: RestrictedFn.LinearFn[QT, ForEachRelevantForAllRelevantConnective[RT]])(
     using builder: RestrictedFn.LinearFnBuilder[
-      Multiplicity.Linear,
       QT,
       ForEachRelevantForAllRelevantConnective[RT]
     ]

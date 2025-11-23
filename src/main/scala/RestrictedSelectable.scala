@@ -124,7 +124,7 @@ object RestrictedSelectable extends RestrictedFnBase:
      * given Liftable[Box] with
      *   def map[A, B](fa: Box[A])(f: A => B) = Box(f(fa.contents))
      *
-     * val result = RestrictedFn.apply((ex1, ex2))(refs =>
+     * val result = RestrictedFn.apply(ex1, ex2))(refs =>
      *   (Box(refs._1).lift, refs._2)  // .lift normalizes the type
      * )
      * }}}

@@ -21,7 +21,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply((ex1, ex2))(refs =>
        // Create a list containing one Restricted element
        // The tuple conversion should automatically lift it
        ForAllLinearConnective((List(refs._1), refs._2))
@@ -34,7 +34,7 @@ import linearfn.RestrictedSelectable.{given, *}
    test("Option[Restricted[A, D]] is automatically lifted in 1-tuple") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Option
       ForAllLinearConnective(Tuple1(Option(refs._1)))
      )
@@ -45,7 +45,7 @@ import linearfn.RestrictedSelectable.{given, *}
    test("Vector[Restricted[A, D]] is automatically lifted in 1-tuple") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(Tuple1(ex1))(refs =>
        // The tuple conversion should automatically lift the Vector
       ForAllLinearConnective(Tuple1(Vector(refs._1)))
      )
@@ -57,7 +57,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply((ex1, ex2))(refs =>
          ForAllLinearConnective((List(refs._1), List(refs._1)))
        )
      """)
@@ -72,7 +72,7 @@ import linearfn.RestrictedSelectable.{given, *}
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
        val ex3 = OpsExample("Charlie", "35")
-       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2, ex3))(refs =>
+       RestrictedFn.apply((ex1, ex2, ex3))(refs =>
          ForAllLinearConnective((List(refs._1), refs._1, refs._2))
        )
      """)
@@ -86,7 +86,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply((ex1, ex2))(refs =>
          ForAllLinearConnective((Option(refs._1), List(refs._1)))
        )
      """)
@@ -100,7 +100,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val ex2 = OpsExample("Bob", "25")
 
      // This is fine - refs._1 in first container, refs._2 in second
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply((ex1, ex2))(refs =>
        ForAllLinearConnective((List(refs._1), Option(refs._2)))
      )
 
@@ -112,7 +112,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply((ex1, ex2))(refs =>
        // Create a nested list structure
        val innerList = List(refs._1)
        val nestedList = List(innerList)
@@ -126,7 +126,7 @@ import linearfn.RestrictedSelectable.{given, *}
    test("nested List[Option[Restricted[A, D]]] is automatically lifted") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(Tuple1(ex1))(refs =>
        // Create nested List[Option[...]]
        val opt = Option(refs._1)
        val listOfOpt = List(opt)
@@ -139,7 +139,7 @@ import linearfn.RestrictedSelectable.{given, *}
    test("deeply nested List[List[List[Restricted[A, D]]]] is automatically lifted") {
      val ex1 = OpsExample("Alice", "30")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)(Tuple1(ex1))(refs =>
+     val result = RestrictedFn.apply(Tuple1(ex1))(refs =>
        // Create deeply nested structure
        val inner = List(refs._1)
        val middle = List(inner)
@@ -159,7 +159,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply((ex1, ex2))(refs =>
          val list = List(refs._1)
          ForAllLinearConnective((list, list))  // Trying to return the same list twice
        )
@@ -183,7 +183,7 @@ import linearfn.RestrictedSelectable.{given, *}
 
    val person1 = Person("Alice", 30)
    val person2 = Person("Bob", 25)
-   val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((person1, person2))(refs =>
+   val result = RestrictedFn.apply((person1, person2))(refs =>
      val wrapped = Wrap(refs._1.combine(refs._2))
      ForAllLinearConnective((wrapped, refs._2))
    )
@@ -200,7 +200,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val ex1 = OpsExample("Alice", "30")
      val ex2 = OpsExample("Bob", "25")
 
-     val result = RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+     val result = RestrictedFn.apply((ex1, ex2))(refs =>
        val wrapped = Wrap(refs._1).lift
        ForAllLinearConnective((wrapped, refs._2))
      )
@@ -218,7 +218,7 @@ import linearfn.RestrictedSelectable.{given, *}
      val obtained = compileErrors("""
        val ex1 = OpsExample("Alice", "30")
        val ex2 = OpsExample("Bob", "25")
-       RestrictedFn.apply(linearfn.Multiplicity.Linear)((ex1, ex2))(refs =>
+       RestrictedFn.apply((ex1, ex2))(refs =>
          val wrapped = Wrap(refs._1).lift
          ForAllLinearConnective((wrapped, wrapped))  // Trying to return same wrapped value twice
        )

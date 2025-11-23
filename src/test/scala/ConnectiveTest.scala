@@ -44,7 +44,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1, 2, 3))
     val q2 = TestQuery(List(10, 20))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       val combined = refs._1.flatMap(x => refs._2)
       ForAllAffineConnective(Tuple1(combined))
     )
@@ -57,7 +57,7 @@ class ConnectiveTest extends FunSuite:
     val q2 = TestQuery(List(10, 20))
     val q3 = TestQuery(List(100, 200, 300))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((q1, q2, q3))(refs =>
+    val result = RestrictedFn.apply((q1, q2, q3))(refs =>
       val step1 = refs._1.flatMap { x => refs._2 }
       val step2 = step1.flatMap { y => refs._3 }
       ForAllAffineConnective(Tuple1(step2))
@@ -71,7 +71,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1, 2, 3))
     val q2 = TestQuery(List(100))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       val transformed = refs._1.flatMap { (x: Int) =>
         // x is plain Int, not Restricted[Int, _]
         refs._2
@@ -90,7 +90,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10, 20))
 
-      RestrictedFn.apply(Multiplicity.Affine)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         val combined = refs._1.flatMap((x: Int) => refs._2)
         // Error: refs._2 used twice (in flatMap body and in return)
         ForAllAffineConnective((combined, refs._1, refs._2))
@@ -110,7 +110,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: @unrestricted - function not tracked") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val mapped = refs._1.map((x: Int) => x * 2)
       ForAllAffineConnective(Tuple1(mapped))
     )
@@ -121,7 +121,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: @unrestricted - filter with predicate") {
     val q = TestQuery(List(1, 2, 3, 4, 5))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val filtered = refs._1.filter((x: Int) => x > 2)
       ForAllAffineConnective(Tuple1(filtered))
     )
@@ -132,7 +132,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: @unrestricted - chaining map and filter") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val doubled = refs._1.map((x: Int) => x * 2)
       val filtered = doubled.filter((x: Int) => x > 2)
       ForAllAffineConnective(Tuple1(filtered))
@@ -144,7 +144,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: @unrestricted with plain values - EmptyTuple doesn't affect dependencies") {
     val ex = OpsExample("base", "0")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(ex))(refs =>
+    val result = RestrictedFn.apply(Tuple1(ex))(refs =>
       // Plain strings implicitly converted to Restricted[String, EmptyTuple]
       val updated = refs._1.allUnrestrictedArgs("prefix-", "-suffix")
       ForAllAffineConnective(Tuple1(updated))
@@ -157,7 +157,7 @@ class ConnectiveTest extends FunSuite:
     val ex1 = OpsExample("first", "0")
     val ex2 = OpsExample("second", "0")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2))(refs =>
       // refs._2 is restricted (tracked), "config" is unrestricted (plain)
       val combined = refs._1.restrictedProductArg_UnrestrictedPrimitiveArg(refs._2, "plain config")
       ForAllAffineConnective(Tuple1(combined))
@@ -169,7 +169,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: @unrestricted - type parameters preserved") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val stringQuery = refs._1.map[String]((x: Int) => x.toString)
       ForAllAffineConnective(Tuple1(stringQuery))
     )
@@ -184,7 +184,7 @@ class ConnectiveTest extends FunSuite:
   test("POSITIVE: regular function param - implicit conversion wraps function") {
     val q1 = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q1))(refs =>
       // Function is implicitly converted to Restricted[A => TestQuery[B], EmptyTuple]
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       ForAllAffineConnective(Tuple1(transformed))
@@ -198,7 +198,7 @@ class ConnectiveTest extends FunSuite:
 
     // This works because the function is implicitly converted with EmptyTuple deps
     // It can't actually capture refs inside because implicit conversion happens at function definition
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q1))(refs =>
       ForAllAffineConnective(Tuple1(refs._1.combine((x: Int) => TestQuery(List(x + 1000)))))
     )
 
@@ -214,19 +214,19 @@ class ConnectiveTest extends FunSuite:
     val q2 = TestQuery(List(100))
 
     // @restrictedReturn: tracks return type, allows capturing tracked values
-    val result1 = RestrictedFn.apply(Multiplicity.Affine)((q1, q2))(refs =>
+    val result1 = RestrictedFn.apply((q1, q2))(refs =>
       ForAllAffineConnective(Tuple1(refs._1.flatMap((x: Int) => refs._2)))
     )
     assertEquals(result1._1.data, List(100, 100))
 
     // @unrestricted: doesn't track anything
-    val result2 = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+    val result2 = RestrictedFn.apply(Tuple1(q1))(refs =>
       ForAllAffineConnective(Tuple1(refs._1.map((x: Int) => x * 10)))
     )
     assertEquals(result2._1.data, List(10, 20))
 
     // Regular: function wrapped via implicit with EmptyTuple deps
-    val result3 = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+    val result3 = RestrictedFn.apply(Tuple1(q1))(refs =>
       ForAllAffineConnective(Tuple1(refs._1.combine((x: Int) => TestQuery(List(x + 1000)))))
     )
     assertEquals(result3._1.data, List(1001, 1002))
@@ -243,7 +243,7 @@ class ConnectiveTest extends FunSuite:
     val q2 = TestQuery(List(10))
     val q3 = TestQuery(List(100))
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((q1, q2, q3))(refs =>
+    val result = RestrictedFn.apply((q1, q2, q3))(refs =>
       val combined = refs._1.flatMap(x => refs._2)
       ForAllLinearConnective((combined, refs._3))
     )
@@ -259,7 +259,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Linear)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         // Not using refs._2 inside flatMap - it's unused
         val combined = refs._1.flatMap(x => TestQuery(List(x)))
         ForAllLinearConnective((combined, refs._1))
@@ -280,7 +280,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Linear)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         val combined1 = refs._1.flatMap(x => refs._2)
         val combined2 = refs._1.flatMap(x => refs._2)
         ForAllLinearConnective((combined1, combined2))
@@ -298,7 +298,7 @@ class ConnectiveTest extends FunSuite:
   test("@restrictedReturn + Affine: POSITIVE - used zero times") {
     val q = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val combined = refs._1.flatMap(x => TestQuery(List(x * 2)))
       ForAllAffineConnective(Tuple1(combined))
     )
@@ -311,7 +311,7 @@ class ConnectiveTest extends FunSuite:
     val q2 = TestQuery(List(10))
     val q3 = TestQuery(List(100))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((q1, q2, q3))(refs =>
+    val result = RestrictedFn.apply((q1, q2, q3))(refs =>
       val combined = refs._1.flatMap(x => refs._2)
       ForAllAffineConnective((combined, refs._3))
     )
@@ -327,7 +327,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Affine)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         val combined1 = refs._1.flatMap(x => refs._2)
         val combined2 = refs._1.flatMap(x => refs._2)
         ForAllAffineConnective((combined1, combined2))
@@ -347,7 +347,7 @@ class ConnectiveTest extends FunSuite:
     val q2 = TestQuery(List(10))
     val q3 = TestQuery(List(100))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((q1, q2, q3))(refs =>
+    val result = RestrictedFn.apply((q1, q2, q3))(refs =>
       val combined = refs._1.flatMap(x => refs._2)
       ForAllRelevantConnective((combined, refs._3))
     )
@@ -359,7 +359,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1))
     val q2 = TestQuery(List(10))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       val combined1 = refs._1.flatMap(x => TestQuery(List(x * 2)))
       val combined2 = refs._2.flatMap(x => TestQuery(List(x * 3)))
       ForAllRelevantConnective((combined1, combined2))
@@ -377,7 +377,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         val combined = refs._1.flatMap(x => TestQuery(List(x)))
         ForAllRelevantConnective((combined, refs._1))
       )
@@ -398,7 +398,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Linear: POSITIVE - unrestricted param doesn't affect linearity") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       // map takes @unrestricted function, so calling it doesn't affect linearity of refs._1
       val mapped = refs._1.map((x: Int) => x * 2)
       ForAllLinearConnective(Tuple1(mapped))
@@ -411,7 +411,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1, 2))
     val q2 = TestQuery(List(10))
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       // Both receivers are tracked (Linear requires both used exactly once)
       val mapped1 = refs._1.map((x: Int) => x * 2)
       val mapped2 = refs._2.map((x: Int) => x * 10)
@@ -427,7 +427,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Affine: POSITIVE - can use receiver zero times") {
     val q = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       // map takes @unrestricted function, demonstrating receiver can be used zero times would require not using refs at all
       // But that's not possible in a meaningful test, so this test shows map can be called without issues
       val mapped = refs._1.map((x: Int) => x * 2)
@@ -440,7 +440,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Affine: POSITIVE - can use receiver once") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val mapped = refs._1.map((x: Int) => x * 2)
       ForAllAffineConnective(Tuple1(mapped))
     )
@@ -455,7 +455,7 @@ class ConnectiveTest extends FunSuite:
 
       val q = TestQuery(List(1, 2, 3))
 
-      RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+      RestrictedFn.apply(Tuple1(q))(refs =>
         val mapped1 = refs._1.map((x: Int) => x * 2)
         val mapped2 = refs._1.map((x: Int) => x * 3)
         ForAllAffineConnective((mapped1, mapped2))
@@ -473,7 +473,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Relevant: POSITIVE - used exactly once") {
     val q = TestQuery(List(1, 2, 3))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       val mapped = refs._1.map((x: Int) => x * 2)
       ForAllRelevantConnective(Tuple1(mapped))
     )
@@ -485,7 +485,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1, 2))
     val q2 = TestQuery(List(10, 20))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       val mapped1 = refs._1.map((x: Int) => x * 2)
       val mapped2 = refs._2.map((x: Int) => x * 3)
       ForAllRelevantConnective((mapped1, mapped2))
@@ -503,7 +503,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         // Only using refs._1, refs._2 unused - Relevant requires all used at least once
         val mapped = refs._1.map((x: Int) => x * 2)
         ForAllRelevantConnective(Tuple1(mapped))
@@ -525,7 +525,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Linear: POSITIVE - used exactly once") {
     val q1 = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)(Tuple1(q1))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q1))(refs =>
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       ForAllLinearConnective(Tuple1(transformed))
     )
@@ -541,7 +541,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Linear)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         // Only using refs._1, refs._2 unused
         val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
         ForAllLinearConnective(Tuple1(transformed))
@@ -561,7 +561,7 @@ class ConnectiveTest extends FunSuite:
 
       val q1 = TestQuery(List(1, 2))
 
-      RestrictedFn.apply(Multiplicity.Linear)(Tuple1(q1))(refs =>
+      RestrictedFn.apply(Tuple1(q1))(refs =>
         val transformed1 = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
         val transformed2 = refs._1.combine((x: Int) => TestQuery(List(x * 3)))
         ForAllLinearConnective((transformed1, transformed2))
@@ -579,7 +579,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Affine: POSITIVE - used zero times") {
     val q = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q))(refs =>
       // Only using refs._1, demonstrating Affine allows using inputs
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       ForAllAffineConnective(Tuple1(transformed))
@@ -591,7 +591,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Affine: POSITIVE - used exactly once") {
     val q1 = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q1))(refs =>
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       ForAllAffineConnective(Tuple1(transformed))
     )
@@ -606,7 +606,7 @@ class ConnectiveTest extends FunSuite:
 
       val q1 = TestQuery(List(1, 2))
 
-      RestrictedFn.apply(Multiplicity.Affine)(Tuple1(q1))(refs =>
+      RestrictedFn.apply(Tuple1(q1))(refs =>
         val transformed1 = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
         val transformed2 = refs._1.combine((x: Int) => TestQuery(List(x * 3)))
         ForAllAffineConnective((transformed1, transformed2))
@@ -624,7 +624,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Relevant: POSITIVE - used exactly once") {
     val q1 = TestQuery(List(1, 2))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)(Tuple1(q1))(refs =>
+    val result = RestrictedFn.apply(Tuple1(q1))(refs =>
       val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       ForAllRelevantConnective(Tuple1(transformed))
     )
@@ -636,7 +636,7 @@ class ConnectiveTest extends FunSuite:
     val q1 = TestQuery(List(1, 2))
     val q2 = TestQuery(List(10, 20))
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+    val result = RestrictedFn.apply((q1, q2))(refs =>
       val transformed1 = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
       val transformed2 = refs._2.combine((x: Int) => TestQuery(List(x * 3)))
       ForAllRelevantConnective((transformed1, transformed2))
@@ -654,7 +654,7 @@ class ConnectiveTest extends FunSuite:
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
 
-      RestrictedFn.apply(Multiplicity.Relevant)((q1, q2))(refs =>
+      RestrictedFn.apply((q1, q2))(refs =>
         // Only using refs._1, refs._2 unused
         val transformed = refs._1.combine((x: Int) => TestQuery(List(x * 2)))
         ForAllRelevantConnective(Tuple1(transformed))
@@ -680,7 +680,7 @@ class ConnectiveTest extends FunSuite:
 
     // Key: refs._2 value is extracted and passed to @unrestricted param
     // This means refs._2 itself can still be returned without conflict
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2, ex3))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2, ex3))(refs =>
       // Pass refs._2.value (String with EmptyTuple deps) to @unrestricted param
       val combined = refs._1.restrictedProductArg_UnrestrictedPrimitiveArg(refs._3, refs._2.value)
       // combined depends on refs._1 and refs._3, but not refs._2
@@ -697,7 +697,7 @@ class ConnectiveTest extends FunSuite:
     val config1 = "config1"
     val config2 = "config2"
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(ex))(refs =>
+    val result = RestrictedFn.apply(Tuple1(ex))(refs =>
       // Both config params have EmptyTuple deps (implicit conversion)
       val v1 = refs._1.allUnrestrictedArgs(config1, config2)
       ForAllAffineConnective(Tuple1(v1))  // Result only depends on refs._1
@@ -711,7 +711,7 @@ class ConnectiveTest extends FunSuite:
     val config = "config"
 
     // Passing same plain string multiple times works because it has EmptyTuple deps
-    val result = RestrictedFn.apply(Multiplicity.Affine)(Tuple1(ex))(refs =>
+    val result = RestrictedFn.apply(Tuple1(ex))(refs =>
       val v1 = refs._1.allUnrestrictedArgs(config, config)  // Same param twice!
       ForAllAffineConnective(Tuple1(v1))
     )
@@ -724,7 +724,7 @@ class ConnectiveTest extends FunSuite:
     val ex2 = OpsExample("second", "0")
     val config = "plain config"
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2))(refs =>
       // config is plain (EmptyTuple), refs._2 is Restricted
       // Result depends on refs._1 (receiver) and refs._2 (tracked param), not config
       val combined = refs._1.restrictedProductArg_UnrestrictedPrimitiveArg(refs._2, config)
@@ -740,7 +740,7 @@ class ConnectiveTest extends FunSuite:
     val ex3 = OpsExample("third", "0")
     val config = "config"
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2, ex3))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2, ex3))(refs =>
       // refs._2 is tracked, config is @unrestricted (EmptyTuple), refs._3 is tracked
       val r = refs._1.mixedTrackedAndUnrestricted(refs._2, config, refs._3)
       ForAllAffineConnective(Tuple1(r))  // Result depends on refs._1, refs._2, refs._3 but NOT config
@@ -753,7 +753,7 @@ class ConnectiveTest extends FunSuite:
     val ex1 = OpsExample("base", "0")
     val ex2 = OpsExample("config", "0")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2))(refs =>
       // refs._2.name used as @unrestricted param, refs._2 returned
       val v1 = refs._1.allUnrestrictedArgs(refs._2.name, "-suffix1")
       ForAllAffineConnective((v1, refs._2))  // Can return refs._2 because its field was @unrestricted!
@@ -768,7 +768,7 @@ class ConnectiveTest extends FunSuite:
     val config1 = "config1"
     val config2 = "config2"
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex, config1, config2))(refs =>
+    val result = RestrictedFn.apply((ex, config1, config2))(refs =>
       // Both config params are @unrestricted (EmptyTuple from implicit)
       val v1 = refs._1.allUnrestrictedArgs(refs._2, refs._3)
       // Can return both config values because they were @unrestricted
@@ -788,7 +788,7 @@ class ConnectiveTest extends FunSuite:
 
     // mixedTrackedAndUnrestricted(first: tracked, config: @unrestricted, second: tracked)
     // Result should depend on first and second, but NOT config
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex1, ex2, ex3, config))(refs =>
+    val result = RestrictedFn.apply((ex1, ex2, ex3, config))(refs =>
       val r = refs._1.mixedTrackedAndUnrestricted(refs._2, refs._4, refs._3)
       // r depends on refs._1, refs._2, refs._3 but NOT refs._4 (config is @unrestricted)
       // We can return config separately because it doesn't conflict with any other dependencies
@@ -805,7 +805,7 @@ class ConnectiveTest extends FunSuite:
 
     // If config were tracked, using refs._2 multiple times would fail
     // But since it's @unrestricted (EmptyTuple from implicit), this works fine
-    val result = RestrictedFn.apply(Multiplicity.Affine)((ex, config))(refs =>
+    val result = RestrictedFn.apply((ex, config))(refs =>
       val v1 = refs._1.allUnrestrictedArgs(refs._2, refs._2)  // Same param twice!
       ForAllAffineConnective((v1, refs._2))  // Can also return it!
     )

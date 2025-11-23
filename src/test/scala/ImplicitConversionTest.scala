@@ -16,7 +16,7 @@ class ImplicitConversionTest extends FunSuite:
   test("implicit conversion allows passing plain String to extension method") {
     val person = OpsExample("Alice", "30")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
+    val result = RestrictedFn.apply(Tuple1(person))(refs =>
       // Can pass plain String - implicitly converted to Restricted[String, EmptyTuple]
       val updated = refs._1.singleRestrictedPrimitiveArg("Alicia")
       ForAllLinearConnective(Tuple1(updated))
@@ -29,7 +29,7 @@ class ImplicitConversionTest extends FunSuite:
     val person1 = OpsExample("Alice", "30")
     val person2 = OpsExample("Bob", "25")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((person1, person2))(refs =>
+    val result = RestrictedFn.apply((person1, person2))(refs =>
       // refs._2 is already Restricted, but singleRestrictedProductArg accepts both Restricted and plain
       val combined = refs._1.singleRestrictedProductArg(refs._2)
       ForAllLinearConnective(Tuple1(combined))
@@ -41,7 +41,7 @@ class ImplicitConversionTest extends FunSuite:
   test("plain values have EmptyTuple dependencies - don't affect type checking") {
     val person = OpsExample("Alice", "30")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
+    val result = RestrictedFn.apply(Tuple1(person))(refs =>
       // Plain "Alicia" gets converted to Restricted[String, EmptyTuple]
       // Tuple.Concat[EmptyTuple, D] = D, so the result type is still correct
       val updated = refs._1.singleRestrictedPrimitiveArg("Alicia")
@@ -65,7 +65,7 @@ class ImplicitConversionTest extends FunSuite:
 
     val person = Person("Alice")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)(Tuple1(person))(refs =>
+    val result = RestrictedFn.apply(Tuple1(person))(refs =>
       // Both plain strings - each converted to Restricted[String, EmptyTuple]
       val greeting = refs._1.greetWith("Hello", "there!")
       ForAllLinearConnective(Tuple1(greeting))

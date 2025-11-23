@@ -18,7 +18,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllAffineConnective((refs._1, refs._2)) // Both args used exactly once
     )
 
@@ -29,7 +29,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllAffineConnective(Tuple1(refs._1.singleRestrictedProductArg(refs._2))) // Both refs used exactly once
     )
 
@@ -39,7 +39,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       import scala.language.implicitConversions
       import Restricted.given
       val capturedA: Restricted[OpsExample, EmptyTuple] = a
@@ -60,7 +60,7 @@ class DefaultConnectiveTest extends FunSuite:
       val a = OpsExample("a")
       val b = OpsExample("b")
 
-      RestrictedFn.apply(Multiplicity.Affine)((a, b))(refs =>
+      RestrictedFn.apply((a, b))(refs =>
         ForAllAffineConnective((refs._1, refs._2.singleRestrictedProductArg(refs._2)))  // Error: refs._2 used twice
       )
     """)
@@ -75,7 +75,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllLinearConnective((refs._1, refs._2)) // Both args used exactly once
     )
 
@@ -86,7 +86,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllLinearConnective(Tuple1(refs._1.singleRestrictedProductArg(refs._2))) // Both refs used exactly once
     )
 
@@ -96,7 +96,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       import scala.language.implicitConversions
       import Restricted.given
       val capturedA: Restricted[OpsExample, EmptyTuple] = a
@@ -116,13 +116,13 @@ class DefaultConnectiveTest extends FunSuite:
       val a = OpsExample("a")
       val b = OpsExample("b")
 
-      RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>test
+      RestrictedFn.apply((a, b))(refs =>test
         ForAllLinearConnective(Tuple1(refs._1))  // Error: refs._2 not used
       )
     """)
 
     assert(
-      obtained.contains(TestUtils.noGivenInstance) && obtained.contains(TestUtils.linear),
+      obtained.contains(TestUtils.noGivenInstance),
       s"Expected ForAll-Relevant error but got: $obtained"
     )
   }
@@ -135,7 +135,7 @@ class DefaultConnectiveTest extends FunSuite:
       val a = OpsExample("a")
       val b = OpsExample("b")
 
-      RestrictedFn.apply(Multiplicity.Linear)((a, b))(refs =>
+      RestrictedFn.apply((a, b))(refs =>
         ForAllLinearConnective(refs._1, refs._2, refs._1))  // Error: refs._1 used twice
       )
     """)
@@ -150,7 +150,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllRelevantConnective((refs._1, refs._2)) // Both args used exactly once
     )
 
@@ -161,7 +161,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllRelevantConnective(Tuple1(refs._1.singleRestrictedProductArg(refs._2))) // Both refs used exactly once
     )
 
@@ -171,7 +171,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       import scala.language.implicitConversions
       import Restricted.given
       val capturedA: Restricted[OpsExample, EmptyTuple] = a
@@ -191,7 +191,7 @@ class DefaultConnectiveTest extends FunSuite:
       val a = OpsExample("a")
       val b = OpsExample("b")
 
-      RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
+      RestrictedFn.apply((a, b))(refs =>
         ForAllRelevantConnective(Tuple1(refs._1))  // Error: refs._2 not used
       )
     """)
@@ -205,7 +205,7 @@ class DefaultConnectiveTest extends FunSuite:
     val a = OpsExample("a")
     val b = OpsExample("b")
 
-    val result = RestrictedFn.apply(Multiplicity.Relevant)((a, b))(refs =>
+    val result = RestrictedFn.apply((a, b))(refs =>
       ForAllRelevantConnective((refs._1, refs._2))
     )
 

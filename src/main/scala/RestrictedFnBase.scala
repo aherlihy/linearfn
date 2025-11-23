@@ -255,13 +255,12 @@ abstract class RestrictedFnBase:
       case ComposedConnective[rqt, forEachM, forAllM] =>
         ExtractResultTypes[rqt]
 
-    trait LinearFnBuilder[M <: Multiplicity, AT <: Tuple, CustomConnective]:
+    trait LinearFnBuilder[AT <: Tuple, CustomConnective]:
       def execute(fns: LinearFn[AT, CustomConnective])(args: AT): ExtractReturnType[CustomConnective]
 
     object LinearFnBuilder:
       // Builder for ComposedConnective - enforces custom connective constraints
       given connectiveBuilder[
-        M <: Multiplicity, // function-wide multiplicity
         AT <: Tuple,    // args types
         RQT <: Tuple,   // return types (restricted)
         ForEachM <: Multiplicity,
@@ -272,7 +271,7 @@ abstract class RestrictedFnBase:
         @implicitNotFound(ErrorMsg.compositionForEachFailed)
         evForEach: CheckForEachMultiplicity[ForEachM, AT, RQT],
 //        @implicitNotFound("DEBUG: ${RQT}") debug: RQT =:= false
-      ): LinearFnBuilder[M, AT, ComposedConnective[RQT, ForEachM, ForAllM]] with
+      ): LinearFnBuilder[AT, ComposedConnective[RQT, ForEachM, ForAllM]] with
         def execute(fns: LinearFn[AT, ComposedConnective[RQT, ForEachM, ForAllM]])(args: AT): ExtractResultTypes[RQT] =
           val restrictedRefs = (0 until args.size).map(i => makeRestrictedRef(() => args.productElement(i).asInstanceOf[Any])).toArray
           val restrictedRefsTuple= Tuple.fromArray(restrictedRefs).asInstanceOf[ToRestrictedRef[AT]]
@@ -298,10 +297,9 @@ abstract class RestrictedFnBase:
      * @param fns The function from restricted references to return values
      * @return The tuple of executed results
      */
-    def apply[M <: Multiplicity, AT <: Tuple, RT <: Tuple, ForEachM <: Multiplicity, ForAllM <: Multiplicity](
-      multiplicity: M
-    )(args: AT)(fns: LinearFn[AT, ComposedConnective[RT, ForEachM, ForAllM]])(
-      using builder: LinearFnBuilder[M, AT, ComposedConnective[RT, ForEachM, ForAllM]]
+    def apply[AT <: Tuple, RT <: Tuple, ForEachM <: Multiplicity, ForAllM <: Multiplicity]
+      (args: AT)(fns: LinearFn[AT, ComposedConnective[RT, ForEachM, ForAllM]])(
+      using builder: LinearFnBuilder[AT, ComposedConnective[RT, ForEachM, ForAllM]]
     ): ExtractResultTypes[RT] =
       builder.execute(fns)(args)
 

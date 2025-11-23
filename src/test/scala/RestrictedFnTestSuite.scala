@@ -14,7 +14,7 @@
 //
 //   test(s"$name: single argument - return unchanged") {
 //     val str = "hello"
-//     val result = impl.RestrictedFn.apply(Multiplicity.Affine)(Tuple1(str))(refs =>
+//     val result = impl.RestrictedFn.apply(Tuple1(str))(refs =>
 //       ForAllLinearConnective(Tuple1(refs._1))
 //     )
 //     assertEquals(result, Tuple1(str))
@@ -23,7 +23,7 @@
 //   test(s"$name: two arguments - return unchanged") {
 //     val str = "hello"
 //     val num = 42
-//     val result = impl.RestrictedFn.apply(Multiplicity.Affine)((str, num))(refs =>
+//     val result = impl.RestrictedFn.apply((str, num))(refs =>
 //       ForAllAffineConnective((refs._1, refs._2))
 //     )
 //     assertEquals(result, (str, num))
@@ -32,7 +32,7 @@
 //   test(s"$name: two arguments - switch order") {
 //     val str = "hello"
 //     val num = 42
-//     val result = impl.RestrictedFn.apply(Multiplicity.Affine)((str, num))(refs =>
+//     val result = impl.RestrictedFn.apply((str, num))(refs =>
 //       ForAllAffineConnective((refs._2, refs._1))
 //     )
 //     assertEquals(result, (num, str))
