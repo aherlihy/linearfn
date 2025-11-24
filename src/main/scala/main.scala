@@ -1,7 +1,7 @@
-package linearfn
+package restrictedfn
 
-import linearfn.ops
-import linearfn.RestrictedSelectable.{RestrictedFn, Restricted}
+import restrictedfn.ops
+import restrictedfn.RestrictedSelectable.{RestrictedFn, Restricted}
 import scala.Tuple.*
 
 // === Library-facing model (what users write) ===

@@ -1,7 +1,7 @@
 // package test
 // 
 // 
-// import linearfn.{RestrictedDynamic}
+// import restrictedfn.{RestrictedDynamic}
 // 
 // /**
 //  * Tests for RestrictedDynamic implementation.

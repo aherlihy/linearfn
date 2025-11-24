@@ -3,8 +3,8 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.{ops, Multiplicity}
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.{ops, Multiplicity}
+import restrictedfn.RestrictedSelectable.{given, *}
 
 // Simple generic class to test generic type parameter support
 @ops
@@ -123,7 +123,7 @@ class GenericOpsTest extends FunSuite:
 
   test("MArray[Int] - passing String instead of Int fails at compile time") {
     val obtained = compileErrors("""
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
       import _root_.test.{MArray, MArrayOps}
       import MArrayOps.*
 
@@ -141,7 +141,7 @@ class GenericOpsTest extends FunSuite:
 
   test("Box[String] - passing Int instead of String fails at compile time") {
     val obtained = compileErrors("""
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
       import _root_.test.{Box, BoxOps}
       import BoxOps.*
 
@@ -159,7 +159,7 @@ class GenericOpsTest extends FunSuite:
 
   test("MArray[String] - passing MArray[Int] to function expecting MArray[String] fails") {
     val obtained = compileErrors("""
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
       import _root_.test.{MArray, MArrayOps}
       import MArrayOps.*
 

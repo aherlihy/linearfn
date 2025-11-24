@@ -42,7 +42,7 @@ You can wrap return values in different custom tensor types to select constraint
 The library provides helper types for common patterns:
 
 ```scala
-import linearfn.RestrictedSelectable.{RestrictedFn, *}
+import restrictedfn.RestrictedSelectable.{RestrictedFn, *}
 import test.{ForAllLinearConnective, ForAllAffineConnective, ForAllRelevantConnective}
 
 // Traditional linear types (each arg used exactly once total)
@@ -93,7 +93,7 @@ type ForAllRelevantConnective[RT <: Tuple] =
 ## Usage
 
 ```scala
-import linearfn.RestrictedSelectable.{RestrictedFn, *}
+import restrictedfn.RestrictedSelectable.{RestrictedFn, *}
 import test.ForAllAffineConnective  // Example helper type
 
 @ops // needed for Selectable-based implementation
@@ -147,7 +147,7 @@ Uses Scala 3's `Selectable` trait with structural types.
 - **Type safe** - field/method names checked at compile time
 
 ```scala
-import linearfn.RestrictedSelectable.{RestrictedFn, Restricted, *}
+import restrictedfn.RestrictedSelectable.{RestrictedFn, Restricted, *}
 import test.ForAllAffineConnective
 
 // Users must define extension methods for each field/method (or use @ops)
@@ -175,8 +175,8 @@ To simplify the process of defining extension methods, the library provides an `
 To use `@ops` in your own project, you'll need to set up the sbt source generator in your `build.sbt`:
 
 ```scala
-// Add dependency on linearfn library
-libraryDependencies += "com.yourorg" %% "linearfn" % "0.1.0"
+// Add dependency on restrictedfn library
+libraryDependencies += "com.yourorg" %% "restrictedfn" % "0.1.0"
 
 // Add source generator for @ops annotations
 Compile / sourceGenerators += Def.task {
@@ -184,7 +184,7 @@ Compile / sourceGenerators += Def.task {
   val targetDir = (Compile / sourceManaged).value
   val log = streams.value.log
 
-  linearfn.OpsExtensionGenerator.generate(sourceDir, targetDir, log)
+  restrictedfn.OpsExtensionGenerator.generate(sourceDir, targetDir, log)
 }.taskValue
 ```
 
@@ -220,7 +220,7 @@ object TestPersonOps:
 3. Import the generated extensions in your code:
 ```scala
 import TestPersonOps.*
-import linearfn.RestrictedSelectable.RestrictedFn
+import restrictedfn.RestrictedSelectable.RestrictedFn
 import test.ForAllAffineConnective
 
 val result = RestrictedFn.apply((person1, person2))(refs =>

@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{Multiplicity, RestrictedSelectable}
+import restrictedfn.{Multiplicity, RestrictedSelectable}
 import RestrictedSelectable.{given, *}
 import munit.FunSuite
 import test.TestUtils
@@ -568,7 +568,7 @@ idb1(v42, v43) :- p10(v42, v43)."""
   test("NEGATIVE: too many returns - violates fixedPoint constraints") {
     val obtained = compileErrors("""
       import QueryOps.*
-      import linearfn.RestrictedSelectable.Restricted
+      import restrictedfn.RestrictedSelectable.Restricted
 
       val q1 = Query.edb[IntRow]("q1")
       val q2 = Query.edb[IntRow]("q2")

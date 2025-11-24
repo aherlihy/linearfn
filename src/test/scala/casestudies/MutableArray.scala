@@ -1,8 +1,8 @@
 package test
 
-import linearfn.{ops}
+import restrictedfn.{ops}
 import munit.FunSuite
-import linearfn.RestrictedSelectable.RestrictedFn
+import restrictedfn.RestrictedSelectable.RestrictedFn
 
 import scala.reflect.ClassTag
 

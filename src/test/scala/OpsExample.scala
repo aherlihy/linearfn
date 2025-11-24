@@ -1,6 +1,6 @@
 package test
 
-import linearfn.{ops, unrestricted}
+import restrictedfn.{ops, unrestricted}
 
 /**
  * Comprehensive example class for testing @ops annotation and extension generation.

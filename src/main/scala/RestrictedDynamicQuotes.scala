@@ -1,4 +1,4 @@
-package linearfn
+package restrictedfn
 
 import scala.quoted.*
 import scala.language.dynamics
@@ -74,7 +74,7 @@ object RestrictedDynamicQuotes extends RestrictedFnBase:
     for argExpr <- argExprs do
       argExpr.tpe.dealias.widen match {
         case AppliedType(restrictedType, List(_, dArg))
-          if restrictedType.typeSymbol.fullName == "linearfn.RestrictedDynamicQuotes$.Restricted" =>
+          if restrictedType.typeSymbol.fullName == "restrictedfn.RestrictedDynamicQuotes$.Restricted" =>
           currentDeps = TypeRepr.of[Tuple.Concat].appliedTo(List(dArg, currentDeps))
         case _ => ()
       }

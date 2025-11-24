@@ -1,9 +1,9 @@
 package test
 
 import munit.FunSuite
-import linearfn.{RestrictedSelectable, Multiplicity, ops}
+import restrictedfn.{RestrictedSelectable, Multiplicity, ops}
 import scala.annotation.experimental
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.RestrictedSelectable.{given, *}
 
 
 /**
@@ -55,7 +55,7 @@ class DefaultConnectiveTest extends FunSuite:
     val obtained = compileErrors(
       """
       import OpsExampleOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val a = OpsExample("a")
       val b = OpsExample("b")
@@ -111,7 +111,7 @@ class DefaultConnectiveTest extends FunSuite:
     val obtained = compileErrors(
       """
       import OpsExampleOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val a = OpsExample("a")
       val b = OpsExample("b")
@@ -130,7 +130,7 @@ class DefaultConnectiveTest extends FunSuite:
     val obtained = compileErrors(
       """
       import OpsExampleOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val a = OpsExample("a")
       val b = OpsExample("b")
@@ -186,7 +186,7 @@ class DefaultConnectiveTest extends FunSuite:
     val obtained = compileErrors(
       """
       import OpsExampleOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val a = OpsExample("a")
       val b = OpsExample("b")

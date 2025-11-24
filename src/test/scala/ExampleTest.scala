@@ -2,7 +2,7 @@
 // package test
 // 
 // import munit.FunSuite
-// import linearfn.{HorizontalConstraint, RestrictedSelectable, VerticalConstraint, ops}
+// import restrictedfn.{HorizontalConstraint, RestrictedSelectable, VerticalConstraint, ops}
 // import test.TestUtils
 // 
 // class ExampleTest extends FunSuite:

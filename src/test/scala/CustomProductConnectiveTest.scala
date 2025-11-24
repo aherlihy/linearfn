@@ -1,7 +1,7 @@
 package test
 
-import linearfn.{Multiplicity,ops, restricted, restrictedReturn, unrestricted}
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.{Multiplicity,ops, restricted, restrictedReturn, unrestricted}
+import restrictedfn.RestrictedSelectable.{given, *}
 import munit.FunSuite
 
 /*

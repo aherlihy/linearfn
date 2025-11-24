@@ -1,4 +1,4 @@
-package linearfn
+package restrictedfn
 
 import Utils.*
 import scala.language.implicitConversions

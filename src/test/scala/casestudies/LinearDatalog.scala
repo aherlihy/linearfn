@@ -1,6 +1,6 @@
 package test.casestudies
 
-import linearfn.{ErrorMsg, Multiplicity, RestrictedSelectable, ops, restricted, restrictedReturn, unrestricted}
+import restrictedfn.{ErrorMsg, Multiplicity, RestrictedSelectable, ops, restricted, restrictedReturn, unrestricted}
 
 import scala.annotation.implicitNotFound
 
@@ -144,9 +144,9 @@ object Query:
         QT,
         DatalogConnective[RQT]
       ],
-      @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnLengthFailed)
+      @implicitNotFound("fixedPoint requires same number of arguments and returns")
       evStrict: Tuple.Size[RQT] =:= Tuple.Size[QT],
-      @implicitNotFound(linearfn.ErrorMsg.fixedPointReturnTypesFailed)
+      @implicitNotFound("fixedPoint requires return types to match argument types")
       evReturnTypes: ExtractQueryRowTypes[RestrictedSelectable.ExtractResultTypes[RQT]] =:= ExtractQueryRowTypes[QT]
   ): QT = {
     val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))

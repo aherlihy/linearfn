@@ -2,8 +2,8 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.{Multiplicity}
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.{Multiplicity}
+import restrictedfn.RestrictedSelectable.{given, *}
 
 
 /**

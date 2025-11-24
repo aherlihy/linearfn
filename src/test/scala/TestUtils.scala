@@ -1,18 +1,13 @@
 package test
 
-import linearfn.{ErrorMsg, Multiplicity }
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.{ErrorMsg, Multiplicity }
+import restrictedfn.RestrictedSelectable.{given, *}
 object TestUtils:
-  val substructuralConstraintFailed = ErrorMsg.substructuralContstraintFailed.split(":", 2).head
-  val multiplicityConstraintFailed = ErrorMsg.multiplicityConstraintFailed.split(":", 2).head
   val compositionForAllFailed = ErrorMsg.compositionForAllFailed.split(":", 2).head
   val compositionForEachFailed = ErrorMsg.compositionForEachFailed.split(":", 2).head
-  val fixedPointReturnLengthFailed = ErrorMsg.fixedPointReturnLengthFailed.split(":", 2).head
-  val fixedPointReturnTypesFailed = ErrorMsg.fixedPointReturnTypesFailed.split(":", 2).head
-  val typeErrorStr = "Expected"
-  val missingTypeClassMsg = "Cannot prove"
+  val fixedPointReturnLengthFailed = "fixedPoint requires same number of arguments and returns"
+  val fixedPointReturnTypesFailed = "fixedPoint requires return types to match argument types"
   val missingField = "is not a member of"
-  val otherError = "match type could not be fully reduced"
   val noGivenInstance = "No given instance of type"
   val forAll = "ForAll"
   val forEach = "ForEach"

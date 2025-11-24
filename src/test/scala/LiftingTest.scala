@@ -2,7 +2,7 @@ package test
 
 import munit.FunSuite
 import scala.annotation.experimental
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.RestrictedSelectable.{given, *}
 
  /**
   * Tests for automatic lifting of nested types: T[Restricted[A, D]] => Restricted[T[A], D]

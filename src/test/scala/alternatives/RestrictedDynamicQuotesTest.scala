@@ -1,7 +1,7 @@
 // package test
 // 
 // 
-// import linearfn.{RestrictedDynamicQuotes}
+// import restrictedfn.{RestrictedDynamicQuotes}
 // 
 // /**
 //  * Tests for RestrictedDynamicQuotes implementation.

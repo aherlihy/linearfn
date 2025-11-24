@@ -1,4 +1,4 @@
-package linearfn
+package restrictedfn
 
 import scala.annotation.StaticAnnotation
 

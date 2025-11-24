@@ -1,4 +1,4 @@
-package linearfn
+package restrictedfn
 
 import scala.language.implicitConversions
 import scala.language.dynamics

@@ -1,6 +1,6 @@
 package test
 
-import linearfn.ops
+import restrictedfn.ops
 
 @ops
 class IntType(val value: Int):

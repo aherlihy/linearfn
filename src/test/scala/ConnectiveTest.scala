@@ -1,9 +1,9 @@
 package test
 
 import munit.FunSuite
-import linearfn.{Multiplicity, ops, restrictedReturn, unrestricted}
+import restrictedfn.{Multiplicity, ops, restrictedReturn, unrestricted}
 import scala.annotation.experimental
-import linearfn.RestrictedSelectable.{given, *}
+import restrictedfn.RestrictedSelectable.{given, *}
 
 /**
  * Comprehensive tests for connective annotations with Linear multiplicity:
@@ -85,7 +85,7 @@ class ConnectiveTest extends FunSuite:
   test("NEGATIVE: @restrictedReturn - inner query used twice fails") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10, 20))
@@ -254,7 +254,7 @@ class ConnectiveTest extends FunSuite:
   test("@restrictedReturn + Linear: NEGATIVE - used zero times") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -275,7 +275,7 @@ class ConnectiveTest extends FunSuite:
   test("@restrictedReturn + Linear: NEGATIVE - used twice") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -322,7 +322,7 @@ class ConnectiveTest extends FunSuite:
   test("@restrictedReturn + Affine: NEGATIVE - used twice") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -372,7 +372,7 @@ class ConnectiveTest extends FunSuite:
   test("@restrictedReturn + Relevant: NEGATIVE - used zero times") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -451,7 +451,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Affine: NEGATIVE - cannot use receiver twice") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q = TestQuery(List(1, 2, 3))
 
@@ -498,7 +498,7 @@ class ConnectiveTest extends FunSuite:
   test("@unrestricted + Relevant: NEGATIVE - used zero times") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -536,7 +536,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Linear: NEGATIVE - used zero times") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))
@@ -557,7 +557,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Linear: NEGATIVE - used twice") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
 
@@ -602,7 +602,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Affine: NEGATIVE - used twice") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
 
@@ -649,7 +649,7 @@ class ConnectiveTest extends FunSuite:
   test("Regular + Relevant: NEGATIVE - used zero times") {
     val obtained = compileErrors("""
       import TestQueryOps.*
-      import linearfn.{RestrictedSelectable, Multiplicity}
+      import restrictedfn.{RestrictedSelectable, Multiplicity}
 
       val q1 = TestQuery(List(1, 2))
       val q2 = TestQuery(List(10))

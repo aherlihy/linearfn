@@ -1,8 +1,8 @@
 // package test
 //
 // import munit.FunSuite
-// import linearfn.{RestrictedSelectable, Multiplicity, ops, RestrictedFnBase}
-// import linearfn.RestrictedSelectable.{given, *}
+// import restrictedfn.{RestrictedSelectable, Multiplicity, ops, RestrictedFnBase}
+// import restrictedfn.RestrictedSelectable.{given, *}
 //
 //
 //

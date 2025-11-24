@@ -1,6 +1,6 @@
-package linearfn
+package restrictedfn
 
-import linearfn.Utils.*
+import restrictedfn.Utils.*
 import scala.annotation.implicitNotFound
 
 // ============================================================================

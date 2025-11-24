@@ -1,7 +1,7 @@
 // package test
 //
 //
-// import linearfn.{RestrictedDynamicMacros, Multiplicity}
+// import restrictedfn.{RestrictedDynamicMacros, Multiplicity}
 //
 // /**
 //  * Tests for RestrictedDynamicMacros implementation.
