@@ -176,8 +176,8 @@ object ForEachRelevantForAllRelevantConnective:
 object ProductConnectiveFns:
   def forAllLinearFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForAllLinearConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForAllLinearConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForAllLinearConnective[RT]
     ]
@@ -186,8 +186,8 @@ object ProductConnectiveFns:
 
   def forEachLinearFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachLinearConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachLinearConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachLinearConnective[RT]
     ]
@@ -196,8 +196,8 @@ object ProductConnectiveFns:
 
   def forAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForAllAffineConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForAllAffineConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForAllAffineConnective[RT]
     ]
@@ -206,8 +206,8 @@ object ProductConnectiveFns:
 
   def forEachAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachAffineConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachAffineConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachAffineConnective[RT]
     ]
@@ -216,8 +216,8 @@ object ProductConnectiveFns:
 
   def forAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForAllRelevantConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForAllRelevantConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForAllRelevantConnective[RT]
     ]
@@ -226,8 +226,8 @@ object ProductConnectiveFns:
 
   def forEachRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachRelevantConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachRelevantConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachRelevantConnective[RT]
     ]
@@ -236,8 +236,8 @@ object ProductConnectiveFns:
 
   def forEachAffineForAllLinearFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllLinearConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachAffineForAllLinearConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachAffineForAllLinearConnective[RT]
     ]
@@ -246,8 +246,8 @@ object ProductConnectiveFns:
 
   def forEachLinearForAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachLinearForAllAffineConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachLinearForAllAffineConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachLinearForAllAffineConnective[RT]
     ]
@@ -256,8 +256,8 @@ object ProductConnectiveFns:
 
   def forEachAffineForAllAffineFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllAffineConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachAffineForAllAffineConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachAffineForAllAffineConnective[RT]
     ]
@@ -266,8 +266,8 @@ object ProductConnectiveFns:
 
   def forEachLinearForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachLinearForAllRelevantConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachLinearForAllRelevantConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachLinearForAllRelevantConnective[RT]
     ]
@@ -276,8 +276,8 @@ object ProductConnectiveFns:
 
   def forEachAffineForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachAffineForAllRelevantConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachAffineForAllRelevantConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachAffineForAllRelevantConnective[RT]
     ]
@@ -286,8 +286,8 @@ object ProductConnectiveFns:
 
   def forEachRelevantForAllRelevantFn[QT <: Tuple, RT <: Tuple](
     bases: QT
-  )(fns: RestrictedFn.LinearFn[QT, ForEachRelevantForAllRelevantConnective[RT]])(
-    using builder: RestrictedFn.LinearFnBuilder[
+  )(fns: RestrictedFn.RestrictedFn[QT, ForEachRelevantForAllRelevantConnective[RT]])(
+    using builder: RestrictedFn.RestrictedFnBuilder[
       QT,
       ForEachRelevantForAllRelevantConnective[RT]
     ]

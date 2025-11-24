@@ -4,7 +4,7 @@ ThisBuild / scalaVersion := "3.7.3"
 
 lazy val root = (project in file("."))
   .settings(
-    name := "linearfn",
+    name := "restrictedfn",
     // Note: -experimental removed since @ops is now a simple marker annotation
     // scalacOptions ++= Seq("-experimental"),
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test,

@@ -138,9 +138,9 @@ object Query:
    */
   def fixedPoint[QT <: Tuple, RQT <: Tuple, DT <: Tuple](
     bases: QT
-  )(fns: RestrictedSelectable.RestrictedFn.LinearFn[QT, DatalogConnective[RQT]])(
+  )(fns: RestrictedSelectable.RestrictedFn.RestrictedFn[QT, DatalogConnective[RQT]])(
     using
-      builder: RestrictedSelectable.RestrictedFn.LinearFnBuilder[
+      builder: RestrictedSelectable.RestrictedFn.RestrictedFnBuilder[
         QT,
         DatalogConnective[RQT]
       ],

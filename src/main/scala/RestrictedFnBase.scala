@@ -249,16 +249,16 @@ abstract class RestrictedFnBase:
      * This is the library's contribution - a clean name for linear functions
      * that take restricted references and return a ComposedConnective.
      */
-    type LinearFn[AT <: Tuple, RQT] = ToRestrictedRef[AT] => RQT
+    type RestrictedFn[AT <: Tuple, RQT] = ToRestrictedRef[AT] => RQT
 
     type ExtractReturnType[Connective] = Connective match
       case CustomConnective[rqt, forEachM, forAllM] =>
         ExtractResultTypes[rqt]
 
-    trait LinearFnBuilder[AT <: Tuple, Connective]:
-      def execute(fns: LinearFn[AT, Connective])(args: AT): ExtractReturnType[Connective]
+    trait RestrictedFnBuilder[AT <: Tuple, Connective]:
+      def execute(fns: RestrictedFn[AT, Connective])(args: AT): ExtractReturnType[Connective]
 
-    object LinearFnBuilder:
+    object RestrictedFnBuilder:
       // Builder for ComposedConnective - enforces custom connective constraints
       given connectiveBuilder[
         AT <: Tuple,    // args types
@@ -271,8 +271,8 @@ abstract class RestrictedFnBase:
         @implicitNotFound(ErrorMsg.compositionForEachFailed)
         evForEach: CheckForEachMultiplicity[ForEachM, AT, RQT],
 //        @implicitNotFound("DEBUG: ${RQT}") debug: RQT =:= false
-      ): LinearFnBuilder[AT, CustomConnective[RQT, ForEachM, ForAllM]] with
-        def execute(fns: LinearFn[AT, CustomConnective[RQT, ForEachM, ForAllM]])(args: AT): ExtractResultTypes[RQT] =
+      ): RestrictedFnBuilder[AT, CustomConnective[RQT, ForEachM, ForAllM]] with
+        def execute(fns: RestrictedFn[AT, CustomConnective[RQT, ForEachM, ForAllM]])(args: AT): ExtractResultTypes[RQT] =
           val restrictedRefs = (0 until args.size).map(i => makeRestrictedRef(() => args.productElement(i).asInstanceOf[Any])).toArray
           val restrictedRefsTuple= Tuple.fromArray(restrictedRefs).asInstanceOf[ToRestrictedRef[AT]]
           val resultConnective = fns(restrictedRefsTuple)
@@ -299,8 +299,8 @@ abstract class RestrictedFnBase:
      * @return The tuple of executed results
      */
     def apply[AT <: Tuple, RT <: Tuple, ForEachM <: Multiplicity, ForAllM <: Multiplicity]
-    (args: AT)(fns: LinearFn[AT, CustomConnective[RT, ForEachM, ForAllM]])(
-      using builder: LinearFnBuilder[AT, CustomConnective[RT, ForEachM, ForAllM]]
+    (args: AT)(fns: RestrictedFn[AT, CustomConnective[RT, ForEachM, ForAllM]])(
+      using builder: RestrictedFnBuilder[AT, CustomConnective[RT, ForEachM, ForAllM]]
     ): ExtractResultTypes[RT] =
       builder.execute(fns)(args)
 
