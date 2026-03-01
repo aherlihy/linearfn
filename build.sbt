@@ -24,3 +24,16 @@ lazy val root = (project in file("."))
       OpsExtensionGenerator.generate(sourceDir, targetDir, log)
     }.taskValue
   )
+
+lazy val bench = (project in file("bench"))
+  .dependsOn(root % "compile->compile;compile->test")
+  .enablePlugins(JmhPlugin)
+  .settings(
+    Jmh/compile := (Jmh/compile).dependsOn(Test/compile).value,
+    Jmh/run := (Jmh/run).dependsOn(Jmh/compile).evaluated,
+
+    // sbt-jmh generates a ton of Java files, but they're never referenced by Scala files.
+    // By enforcing this using `compileOrder`, we avoid having to run these generated files
+    // through the Scala typechecker which has a significant impact on compile-time.
+    Jmh/compileOrder := CompileOrder.ScalaThenJava
+  )

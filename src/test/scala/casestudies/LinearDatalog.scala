@@ -161,6 +161,35 @@ object Query:
     Tuple.fromArray((0 until argsRefs.size).map(i => IntensionalPredicates(predicates, i)).toArray).asInstanceOf[QT]
   }
 
+  /**
+   * unrestrictedFixedPoint: Fixed-point operator without restricted function framework.
+   *
+   * This is a baseline implementation that does the same thing as fixedPoint but without
+   * any RestrictedSelectable wrapping/unwrapping. Used for performance comparison.
+   *
+   * Type constraints:
+   * - Same number of arguments and returns (strictness)
+   * - Return types match argument types (type safety for recursive fixed-point)
+   */
+  def unrestrictedFixedPoint[QT <: Tuple](
+    bases: QT
+  )(fns: QT => QT)(
+    using
+      @implicitNotFound("unrestrictedFixedPoint requires same number of arguments and returns")
+      evStrict: Tuple.Size[QT] =:= Tuple.Size[QT],
+      @implicitNotFound("unrestrictedFixedPoint requires return types to match argument types")
+      evReturnTypes: ExtractQueryRowTypes[QT] =:= ExtractQueryRowTypes[QT]
+  ): QT = {
+    val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))
+    val argsRefsTuple = Tuple.fromArray(argsRefs.toArray).asInstanceOf[QT]
+    val evaluated = fns(argsRefsTuple)
+    val unioned = bases.toArray.zip(evaluated.toArray).map { (baseQ, evalQ) =>
+      baseQ.asInstanceOf[Query[Any]].union(evalQ.asInstanceOf[Query[Any]])
+    }
+    val predicates = argsRefs.zip(unioned).toMap
+    Tuple.fromArray((0 until argsRefs.size).map(i => IntensionalPredicates(predicates, i)).toArray).asInstanceOf[QT]
+  }
+
 // Intermediate Representation
 object IR:
   case class Program(predicates: Map[String, PredicateDef]):
