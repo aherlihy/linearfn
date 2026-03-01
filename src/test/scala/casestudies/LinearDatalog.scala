@@ -25,6 +25,9 @@ object Expr:
   given [A <: NamedTuple.AnyNamedTuple : IsTupleOfExpr]: Conversion[A, Project[A]] with
     def apply(x: A): Project[A] = Project(x)
 
+  extension [A <: NamedTuple.AnyNamedTuple : IsTupleOfExpr](x: A)
+    def toRow: Project[A] = Project(x)
+
   private var refCount = 0
   case class Ref[A]() extends Expr[A]:
     private val $id = refCount

@@ -20,31 +20,36 @@ type IntRow = (i1: Int, i2: Int)
 class DatalogBenchmark {
 
   @Benchmark
-  def linearRecursiveQuery_restricted(blackhole: Blackhole): Unit = {
-    // Linear recursive query test case from LinearDatalogTest using restricted functions
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
-    val q3 = Query.edb[IntRow]("q3")
-    val r = Query.fixedPoint(q1, q2.union(q3))((a1, a2) =>
-      val r1 = a1.union(q3)
-      val r2 = a2.map(e => (i1 = e.i1, i2 = e.i2))
-      DatalogConnective.apply((r1, r2))
-    )
-    blackhole.consume(r)
+  def transitiveClosure_restricted(blackhole: Blackhole): Unit = {
+    // Classic transitive closure: path(x,y) :- edge(x,y).
+    //                             path(x,z) :- path(x,y), edge(y,z).
+    val edges = Query.edb[IntRow]("edge")
+    val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
+      DatalogConnective.apply(Tuple1(
+        pathTuple._1.flatMap(p =>
+          edges
+            .filter(e => p.i2 == e.i1)
+            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
+        )
+      ))
+    )(0)
+    blackhole.consume(path)
   }
 
   @Benchmark
-  def linearRecursiveQuery_unrestricted(blackhole: Blackhole): Unit = {
-    // Same query but using unrestrictedFixedPoint (no restricted function overhead)
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
-    val q3 = Query.edb[IntRow]("q3")
-    val r = Query.unrestrictedFixedPoint(q1, q2.union(q3))((a1, a2) =>
-      val r1 = a1.union(q3)
-      val r2 = a2.map(e => (i1 = e.i1, i2 = e.i2))
-      (r1, r2)
-    )
-    blackhole.consume(r)
+  def transitiveClosure_unrestricted(blackhole: Blackhole): Unit = {
+    // Same transitive closure using unrestrictedFixedPoint
+    val edges = Query.edb[IntRow]("edge")
+    val path = Query.unrestrictedFixedPoint(Tuple1(edges))((pathTuple) =>
+      Tuple1(
+        pathTuple._1.flatMap(p =>
+          edges
+            .filter(e => p.i2 == e.i1)
+            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
+        )
+      )
+    )(0)
+    blackhole.consume(path)
   }
 
   // ========== ANCESTRY BENCHMARK ==========
@@ -56,14 +61,14 @@ class DatalogBenchmark {
     val parents = Query.edb[Parent]("parents")
     val base = parents
       .filter(p => p.child == Expr.ExprLit(1))
-      .map(p => Expr.Project((name = p.child, gen = Expr.ExprLit(1))))
+      .map(p => (name = p.child, gen = Expr.ExprLit(1)))
 
     val generationQuery = Query.fixedPoint(Tuple1(base))(genTuple =>
       DatalogConnective.apply(Tuple1(
         genTuple._1.flatMap(g =>
           parents
             .filter(parent => parent.parent == g.name)
-            .map(parent => Expr.Project((name = parent.child, gen = g.gen + Expr.ExprLit(1))))
+            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       ))
     )
@@ -71,7 +76,7 @@ class DatalogBenchmark {
     val generation = generationQuery._1
     val result = generation
       .filter(g => g.gen == Expr.ExprLit(2))
-      .map(g => Expr.Project((name = g.name)))
+      .map(g => (name = g.name))
 
     blackhole.consume(result)
   }
@@ -83,14 +88,14 @@ class DatalogBenchmark {
     val parents = Query.edb[Parent]("parents")
     val base = parents
       .filter(p => p.child == Expr.ExprLit(1))
-      .map(p => Expr.Project((name = p.child, gen = Expr.ExprLit(1))))
+      .map(p => (name = p.child, gen = Expr.ExprLit(1)))
 
     val generationQuery = Query.unrestrictedFixedPoint(Tuple1(base))(genTuple =>
       Tuple1(
         genTuple._1.flatMap(g =>
           parents
             .filter(parent => parent.parent == g.name)
-            .map(parent => Expr.Project((name = parent.child, gen = g.gen + Expr.ExprLit(1))))
+            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       )
     )
@@ -98,7 +103,7 @@ class DatalogBenchmark {
     val generation = generationQuery._1
     val result = generation
       .filter(g => g.gen == Expr.ExprLit(2))
-      .map(g => Expr.Project((name = g.name)))
+      .map(g => (name = g.name))
 
     blackhole.consume(result)
   }
@@ -118,7 +123,7 @@ class DatalogBenchmark {
         costTuple._1.flatMap(c =>
           edgeEDB
             .filter(edge => edge.src == c.dst)
-            .map(edge => Expr.Project((dst = edge.dst, cost = c.cost + edge.cost)))
+            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       ))
     )
@@ -139,7 +144,7 @@ class DatalogBenchmark {
         costTuple._1.flatMap(c =>
           edgeEDB
             .filter(edge => edge.src == c.dst)
-            .map(edge => Expr.Project((dst = edge.dst, cost = c.cost + edge.cost)))
+            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       )
     )

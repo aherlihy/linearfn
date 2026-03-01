@@ -31,16 +31,20 @@ class LinearDatalogTest extends FunSuite:
     println(query2)
   }
 
-  test("Linear recursive query") {
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
-    val q3 = Query.edb[IntRow]("q3")
-    val r = Query.fixedPoint(q1, q2.union(q3))((a1, a2) =>
-      val r1 = a1.union(q3)
-      val r2 = a2.map(e => (i1 = e.i1, i2 = e.i2))
-      DatalogConnective.apply((r1, r2))
-    )
-    println(r)
+  test("Transitive closure (classic recursive query)") {
+    // Classic transitive closure: path(x,y) :- edge(x,y).
+    //                             path(x,z) :- path(x,y), edge(y,z).
+    val edges = Query.edb[IntRow]("edge")
+    val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
+      DatalogConnective.apply(Tuple1(
+        pathTuple._1.flatMap(p =>
+          edges
+            .filter(e => p.i2 == e.i1)
+            .map(e => (i1 = p.i1, i2 = e.i2))
+        )
+      ))
+    )(0)
+    println(path)
   }
 
   test("Generate Datalog from simple query") {

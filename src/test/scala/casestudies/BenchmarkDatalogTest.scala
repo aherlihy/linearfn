@@ -57,7 +57,7 @@ class BenchmarkDatalogTest extends FunSuite:
         genTuple._1.flatMap(g =>
           parents
             .filter(parent => parent.parent == g.name)
-            .map(parent => Expr.Project((name = parent.child, gen = g.gen + Expr.ExprLit(1))))
+            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)))
         )
       ))
     )
@@ -137,7 +137,7 @@ p0(v20) :- p1(v18, v19)."""
         costTuple._1.flatMap(c =>
           edgeEDB
             .filter(edge => edge.src == c.dst)
-            .map(edge => Expr.Project((dst = edge.dst, cost = c.cost + edge.cost)))
+            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost))
         )
       ))
     )
@@ -185,7 +185,7 @@ idb0(v10, v11) :- p2(v10, v11)."""
         genTuple._1.flatMap(g =>
           parents
             .filter(parent => parent.parent == g.name)
-            .map(parent => Expr.Project((name = parent.child, gen = g.gen + Expr.ExprLit(1))))
+            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       )
     )
@@ -242,7 +242,7 @@ p0(v20) :- p1(v18, v19)."""
         costTuple._1.flatMap(c =>
           edgeEDB
             .filter(edge => edge.src == c.dst)
-            .map(edge => Expr.Project((dst = edge.dst, cost = c.cost + edge.cost)))
+            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       )
     )
