@@ -15,8 +15,8 @@ type IntRow = (i1: Int, i2: Int)
 class LinearDatalogTest extends FunSuite:
 
   test("Construct normal query") {
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
+    val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+    val q2 = Query.edb[IntRow]("q2", "i1", "i2")
     val query1 = for
       a1 <- q1
       a2 <- q2
@@ -34,7 +34,7 @@ class LinearDatalogTest extends FunSuite:
   test("Transitive closure (classic recursive query)") {
     // Classic transitive closure: path(x,y) :- edge(x,y).
     //                             path(x,z) :- path(x,y), edge(y,z).
-    val edges = Query.edb[IntRow]("edge")
+    val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
       DatalogConnective.apply(Tuple1(
         pathTuple._1.flatMap(p =>
@@ -48,7 +48,7 @@ class LinearDatalogTest extends FunSuite:
   }
 
   test("Generate Datalog from simple query") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val datalog = edges.peek()
     // EDB queries now generate rules
     val expected = "p0(v0, v1) :- edges(v0, v1)."
@@ -56,8 +56,8 @@ class LinearDatalogTest extends FunSuite:
   }
 
   test("Generate Datalog from union query") {
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
+    val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+    val q2 = Query.edb[IntRow]("q2", "i1", "i2")
     val unionQuery = q1.union(q2)
     val datalog = unionQuery.peek()
     // Union generates intermediate predicates for each branch, then combines them
@@ -71,7 +71,7 @@ p1(v4, v5) :- p3(v4, v5)."""
   }
 
   test("Generate Datalog from map query") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i2, i2 = e.i1))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then map it
@@ -82,7 +82,7 @@ p4(v3, v2) :- p5(v2, v3)."""
   }
   
   test("Generate Datalog from constant map query") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i2, i2 = Expr.ExprLit(10)))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then map with constant
@@ -93,7 +93,7 @@ p6(v3, 10) :- p7(v2, v3)."""
   }
 
   test("Generate Datalog from identity map") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i1, i2 = e.i2))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then identity map
@@ -105,8 +105,8 @@ p8(v2, v3) :- p9(v2, v3)."""
 
   test("Generate Datalog from complex query") {
     // More complex: union then map
-    val q1 = Query.edb[IntRow]("q1")
-    val q2 = Query.edb[IntRow]("q2")
+    val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+    val q2 = Query.edb[IntRow]("q2", "i1", "i2")
     val unionQuery = q1.union(q2)
     val mapped = unionQuery.map(e => (i1 = e.i2, i2 = e.i1))
     val datalog = mapped.peek()
@@ -123,7 +123,7 @@ p10(v7, v6) :- p11(v6, v7)."""
   }
 
   test("Generate Datalog from constant filter query 1") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.filter(e => e.i2 == Expr.ExprLit(10))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then filter with constant
@@ -133,7 +133,7 @@ p14(v2, v3) :- p15(v2, v3), v3 == 10."""
     assertEquals(datalog, expected)
   }
   test("Generate Datalog from constant filter query 2") {
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.filter(e => (e.i2 == Expr.ExprLit(10)) && (e.i1 == Expr.ExprLit(5)))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then filter with two constants
@@ -144,7 +144,7 @@ p16(v2, v3) :- p17(v2, v3), v3 == 10, v2 == 5."""
   }
 
   test("Generate Datalog from simple flatMap join") {
-    val path = Query.edb[IntRow]("path")
+    val path = Query.edb[IntRow]("path", "i1", "i2")
     val query = path.flatMap(p1 =>
       path.filter(p2 => p1.i2 == p2.i1)
           .map(p2 => (i1 = p1.i1, i2 = p2.i2))
@@ -163,8 +163,8 @@ p18(v2, v7) :- p19(v2, v3), p20(v3, v7)."""
   }
 
   test("Generate Datalog from flatMap with two different EDBs") {
-    val edges = Query.edb[IntRow]("edges")
-    val nodes = Query.edb[IntRow]("nodes")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
     val query = edges.flatMap(e =>
       nodes.filter(n => e.i2 == n.i1)
            .map(n => (i1 = e.i1, i2 = n.i2))
@@ -181,8 +181,8 @@ p21(v2, v7) :- p22(v2, v3), p23(v3, v7)."""
   }
 
   test("Generate Datalog from flatMap with join and constant constraint") {
-    val edges = Query.edb[IntRow]("edges")
-    val nodes = Query.edb[IntRow]("nodes")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
     val query = edges.flatMap(e =>
       nodes.filter(n => (e.i2 == n.i1) && (n.i2 == Expr.ExprLit(10)))
            .map(n => (i1 = e.i1, i2 = n.i2))
@@ -204,7 +204,7 @@ p24(v2, v7) :- p25(v2, v3), p26(v3, v7), v7 == 10."""
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
-    val edges = Query.edb[IntRow]("edges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val path = Query.fixedPoint(Tuple1(edges))((p) =>
       DatalogConnective.apply(Tuple1(
         p._1.flatMap(p1 =>
@@ -240,8 +240,8 @@ idb0(v10, v11) :- p2(v10, v11)."""
     Query.predCounter = 0
 
     // Two independent recursive predicates: reachable and visited
-    val edges = Query.edb[IntRow]("edges")
-    val nodes = Query.edb[IntRow]("nodes")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
 
     val (reachable, visited) = Query.fixedPoint((edges, nodes))((p) =>
       DatalogConnective.apply((
@@ -290,8 +290,8 @@ idb1(v22, v23) :- p6(v22, v23)."""
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
-    val edges1 = Query.edb[IntRow]("edges1")
-    val edges2 = Query.edb[IntRow]("edges2")
+    val edges1 = Query.edb[IntRow]("edges1", "i1", "i2")
+    val edges2 = Query.edb[IntRow]("edges2", "i1", "i2")
 
     // Two predicates where second one unions the first
     val (path1, path2) = Query.fixedPoint((edges1, edges2))((p) =>
@@ -347,8 +347,8 @@ idb1(v26, v27) :- p6(v26, v27)."""
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
-    val edges = Query.edb[IntRow]("edges")
-    val labels = Query.edb[IntRow]("labels")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val labels = Query.edb[IntRow]("labels", "i1", "i2")
 
     // Two predicates where second one joins with the first
     val (path, labeledPath) = Query.fixedPoint((edges, labels))((p) =>
@@ -397,9 +397,9 @@ idb1(v22, v23) :- p6(v22, v23)."""
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
-    val edges = Query.edb[IntRow]("edges")
-    val nodes = Query.edb[IntRow]("nodes")
-    val attrs = Query.edb[IntRow]("attrs")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
+    val attrs = Query.edb[IntRow]("attrs", "i1", "i2")
 
     // Three predicates with complex dependencies
     val (path, reachableNodes, nodeAttrs) = Query.fixedPoint((edges, nodes, attrs))((p) =>
@@ -470,8 +470,8 @@ idb2(v38, v39) :- p10(v38, v39)."""
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
-    val edges = Query.edb[IntRow]("edges")
-    val revEdges = Query.edb[IntRow]("revEdges")
+    val edges = Query.edb[IntRow]("edges", "i1", "i2")
+    val revEdges = Query.edb[IntRow]("revEdges", "i1", "i2")
 
     // Two mutually recursive predicates
     val (forward, backward) = Query.fixedPoint((edges, revEdges))((p) =>
@@ -558,8 +558,8 @@ idb1(v42, v43) :- p10(v42, v43)."""
     val obtained = compileErrors("""
       import QueryOps.*
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
 
       // Should fail: 2 arguments but only 1 return
       val r = Query.fixedPoint((q1, q2))((a1, a2) =>
@@ -574,9 +574,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
       import QueryOps.*
       import restrictedfn.RestrictedSelectable.Restricted
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
-      val q3 = Query.edb[IntRow]("q3")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
+      val q3 = Query.edb[IntRow]("q3", "i1", "i2")
 
       // Should fail: 2 arguments but 3 returns
       // All arguments are used (ForAll-Relevant satisfied)
@@ -608,8 +608,8 @@ idb1(v42, v43) :- p10(v42, v43)."""
     val obtained = compileErrors("""
       import QueryOps.*
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
 
       // Should fail: p._1 appears twice in the first return value (union with itself)
       val r = Query.fixedPoint((q1, q2))((p) =>
@@ -626,8 +626,8 @@ idb1(v42, v43) :- p10(v42, v43)."""
     val obtained = compileErrors("""
       import QueryOps.*
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
 
       // Should fail: p._1 appears twice in the first return value
       val r = Query.fixedPoint((q1, q2))((p) =>
@@ -645,9 +645,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
     val obtained = compileErrors("""
       import QueryOps.*
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
-      val q3 = Query.edb[IntRow]("q3")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
+      val q3 = Query.edb[IntRow]("q3", "i1", "i2")
 
       // Should fail: p._2 is never used in any return value
       val r = Query.fixedPoint((q1, q2))((p) =>
@@ -664,9 +664,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
     val obtained = compileErrors("""
       import QueryOps.*
 
-      val q1 = Query.edb[IntRow]("q1")
-      val q2 = Query.edb[IntRow]("q2")
-      val external = Query.edb[IntRow]("external")
+      val q1 = Query.edb[IntRow]("q1", "i1", "i2")
+      val q2 = Query.edb[IntRow]("q2", "i1", "i2")
+      val external = Query.edb[IntRow]("external", "i1", "i2")
 
       // Should fail: both arguments use external instead, so both p._1 and p._2 are unused
       val r = Query.fixedPoint((q1, q2))((p) =>

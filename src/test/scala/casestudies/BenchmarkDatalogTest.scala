@@ -43,7 +43,7 @@ class BenchmarkDatalogTest extends FunSuite:
     type Parent = (parent: String, child: String)
     type Generation = (name: String, gen: Int)
 
-    val parents = Query.edb[Parent]("parents")
+    val parents = Query.edb[Parent]("parents", "parent", "child")
 
     // Base case: children of '1' are in generation 1
     // generation(name, 1) :- parents("1", name).
@@ -128,8 +128,8 @@ p0(v20) :- p1(v18, v19)."""
     type Edge = (src: Int, dst: Int, cost: Int)
     type Cost = (dst: Int, cost: Int)
 
-    val baseEDB = Query.edb[Cost]("base")
-    val edgeEDB = Query.edb[Edge]("edge")
+    val baseEDB = Query.edb[Cost]("base", "dst", "cost")
+    val edgeEDB = Query.edb[Edge]("edge", "src", "dst", "cost")
 
     // Recursive case: cost(dst, cost1 + cost2) :- cost(src, cost1), edge(src, dst, cost2).
     val costQuery = Query.fixedPoint(Tuple1(baseEDB))(costTuple =>
@@ -174,7 +174,7 @@ idb0(v10, v11) :- p2(v10, v11)."""
     type Parent = (parent: String, child: String)
     type Generation = (name: String, gen: Int)
 
-    val parents = Query.edb[Parent]("parents")
+    val parents = Query.edb[Parent]("parents", "parent", "child")
 
     val base = parents
       .filter(p => p.child == Expr.ExprLit(1))
@@ -234,8 +234,8 @@ p0(v20) :- p1(v18, v19)."""
     type Edge = (src: Int, dst: Int, cost: Int)
     type Cost = (dst: Int, cost: Int)
 
-    val baseEDB = Query.edb[Cost]("base")
-    val edgeEDB = Query.edb[Edge]("edge")
+    val baseEDB = Query.edb[Cost]("base", "dst", "cost")
+    val edgeEDB = Query.edb[Edge]("edge", "src", "dst", "cost")
 
     val costQuery = Query.unrestrictedFixedPoint(Tuple1(baseEDB))(costTuple =>
       Tuple1(

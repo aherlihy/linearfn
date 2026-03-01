@@ -3,6 +3,8 @@ package test.casestudies
 import restrictedfn.{ErrorMsg, Multiplicity, RestrictedSelectable, ops, restricted, restrictedReturn, unrestricted}
 
 import scala.annotation.implicitNotFound
+import scala.NamedTuple.AnyNamedTuple
+import scala.compiletime.constValueTuple
 
 /**
  * Case Study: Linear Datalog
@@ -19,14 +21,25 @@ object Expr:
     case Expr[b] => b
 
   case class Select[A]($x: Expr[A], $name: String) extends Expr[A]
-  case class Project[A <: NamedTuple.AnyNamedTuple]($a: A) extends Expr[NamedTuple.Map[A, StripExpr]]
+
+  // Type class to capture field names at compile time - following tyql's approach
+  trait FieldNames[A]:
+    def names: Seq[String]
+
+  object FieldNames:
+    inline given [N <: Tuple, V <: Tuple]: FieldNames[NamedTuple.NamedTuple[N, V]] = new FieldNames[NamedTuple.NamedTuple[N, V]]:
+      def names: Seq[String] = constValueTuple[N].toList.asInstanceOf[List[String]]
+
+  case class Project[A <: NamedTuple.AnyNamedTuple]($a: A)(using fieldNames: FieldNames[A]) extends Expr[NamedTuple.Map[A, StripExpr]]:
+    val $fieldNames: Seq[String] = fieldNames.names
+
   type IsTupleOfExpr[A <: NamedTuple.AnyNamedTuple] = Tuple.Union[NamedTuple.DropNames[A]] <:< Expr[?]
 
-  given [A <: NamedTuple.AnyNamedTuple : IsTupleOfExpr]: Conversion[A, Project[A]] with
-    def apply(x: A): Project[A] = Project(x)
-
   extension [A <: NamedTuple.AnyNamedTuple : IsTupleOfExpr](x: A)
-    def toRow: Project[A] = Project(x)
+    def toRow(using FieldNames[A]): Project[A] = Project(x)
+
+  // Implicit conversion from NamedTuple to Project
+  given [A <: NamedTuple.AnyNamedTuple : IsTupleOfExpr](using FieldNames[A]): Conversion[A, Project[A]] = Project(_)
 
   private var refCount = 0
   case class Ref[A]() extends Expr[A]:
@@ -80,6 +93,31 @@ class Query[A]():
   def unionAll(@restricted that: Query[A]): Query[A] =
     Query.Union[A](this, that)
 
+  // Get the schema (field name -> index) for this query result
+  def getSchema: scala.collection.immutable.Map[String, Int] = this match
+    case edb: Query.EDB[_] => edb.schema
+    case Query.Filter(from, _) => from.getSchema
+    case mapQuery: Query.Map[_, _] =>
+      // For Map, extract field names from the projection
+      extractSchemaFromMap(mapQuery)
+    case Query.FlatMap(_, _) => Map.empty // FlatMap can change schema
+    case Query.Union(left, _) => left.getSchema // Assume both sides have same schema
+    case Query.IntensionalRef(_) => Map.empty
+    case Query.IntensionalPredicates(predicates, idx) =>
+      val refs = predicates.keys.toList.sortBy(_.id)
+      if idx < refs.length then
+        predicates(refs(idx)).getSchema
+      else Map.empty
+    case _ => Map.empty
+
+  // Extract schema from a Map operation by analyzing the Expr.Project
+  private def extractSchemaFromMap(mapQuery: Query.Map[_, _]): scala.collection.immutable.Map[String, Int] =
+    mapQuery.$query.$body match
+      case proj: Expr.Project[?] =>
+        // Use the field names stored in the Project
+        proj.$fieldNames.zipWithIndex.toMap
+      case _ => Map.empty
+
   // Convert Query to IR and generate Datalog string
   def peek(): String =
     val resultPred = Query.freshPredName()
@@ -93,11 +131,13 @@ object Query:
     predCounter += 1
     name
 
-  case class EDB[A](predicate: String, arity: Int = 2) extends Query[A]:
+  case class EDB[A](predicate: String, fieldNames: Seq[String] = Seq.empty) extends Query[A]:
+    def arity: Int = if fieldNames.isEmpty then 2 else fieldNames.length
+    def schema: scala.collection.immutable.Map[String, Int] = fieldNames.zipWithIndex.toMap
     override def toString: String = s"EDB(predicate = ${predicate})"
 
   // Factory method that returns Query[A] instead of EDB[A]
-  def edb[A](predicate: String): Query[A] = EDB[A](predicate)
+  def edb[A](predicate: String, fieldNames: String*): Query[A] = EDB[A](predicate, fieldNames)
 
   case class Filter[A]($from: Query[A], $pred: Expr.Fun[A, Expr[Boolean]]) extends Query[A]:
     override def toString: String = s"Filter(from = ${$from}, pred = ${$pred})"
@@ -230,4 +270,7 @@ object IR:
     def toDatalog: String = name
 
   case class Const(value: String) extends Term:
-    def toDatalog: String = value
+    def toDatalog: String = value  // Unquoted for numeric values
+
+  case class Plus(left: Term, right: Term) extends Term:
+    def toDatalog: String = s"${left.toDatalog} + ${right.toDatalog}"
