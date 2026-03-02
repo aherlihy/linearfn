@@ -1,16 +1,14 @@
 package bench
-
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
-import java.util.concurrent.TimeUnit
-import java.nio.file.{Files, Paths, StandardOpenOption}
-import scala.sys.process.*
+import restrictedfn.RestrictedSelectable.{*, given}
+import test.casestudies.Expr.{*, given}
+import test.casestudies.{DatalogConnective, Expr, Query, QueryOps}
 
-import test.casestudies.{Query, DatalogConnective, QueryOps, Expr}
-import QueryOps.{given, *}
-import Expr.{given, *}
-import restrictedfn.RestrictedSelectable.{given, *}
+import java.nio.file.{Files, Paths, StandardOpenOption}
+import java.util.concurrent.TimeUnit
 import scala.NamedTuple.*
+import scala.sys.process.*
 
 /**
  * Benchmarks for Souffle execution on generated Datalog.
@@ -22,7 +20,10 @@ import scala.NamedTuple.*
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.SECONDS)
-class SouffleExecutionBenchmark {
+class SouffleExplicitExecutionBenchmark {
+
+  import test.casestudies.QueryExplicitOps.*
+
 
   val isMac = sys.props("os.name").toLowerCase.contains("mac")
   val souffleExecutable = if isMac then "souffle" else "/scratch/herlihy/souffle/build/src/souffle"
@@ -120,10 +121,10 @@ class SouffleExecutionBenchmark {
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
       DatalogConnective.apply(Tuple1(
-        pathTuple._1.flatMap(p =>
+        pathTuple._1.flatMap_explicit(p =>
           edges
-            .filter(e => p.i2 == e.i1)
-            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
+            .filter_explicit(e => p.i2 == e.i1)
+            .map_explicit(e => (i1 = p.i1, i2 = e.i2).toRow)
         )
       ))
     )._1
@@ -175,10 +176,10 @@ class SouffleExecutionBenchmark {
 
     val generationQuery = Query.fixedPoint(Tuple1(base))(genTuple =>
       DatalogConnective.apply(Tuple1(
-        genTuple._1.flatMap(g =>
+        genTuple._1.flatMap_explicit(g =>
           parents
-            .filter(parent => parent.parent == g.name)
-            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
+            .filter_explicit(parent => parent.parent == g.name)
+            .map_explicit(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       ))
     )
@@ -242,10 +243,10 @@ class SouffleExecutionBenchmark {
 
     val costQuery = Query.fixedPoint(Tuple1(baseEDB))(costTuple =>
       DatalogConnective.apply(Tuple1(
-        costTuple._1.flatMap(c =>
+        costTuple._1.flatMap_explicit(c =>
           edgeEDB
-            .filter(edge => edge.src == c.dst)
-            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
+            .filter_explicit(edge => edge.src == c.dst)
+            .map_explicit(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       ))
     )

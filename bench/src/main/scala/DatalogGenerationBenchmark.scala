@@ -37,7 +37,7 @@ class DatalogGenerationBenchmark {
         pathTuple._1.flatMap(p =>
           edges
             .filter(e => p.i2 == e.i1)
-            .map(e => (i1 = p.i1, i2 = e.i2))
+            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
         )
       ))
     )._1
@@ -88,7 +88,7 @@ class DatalogGenerationBenchmark {
         genTuple._1.flatMap(g =>
           parents
             .filter(parent => parent.parent == g.name)
-            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)))
+            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       ))
     )
@@ -153,7 +153,7 @@ class DatalogGenerationBenchmark {
         costTuple._1.flatMap(c =>
           edgeEDB
             .filter(edge => edge.src == c.dst)
-            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost))
+            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       ))
     )
