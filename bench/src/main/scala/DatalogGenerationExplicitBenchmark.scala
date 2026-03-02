@@ -2,43 +2,56 @@ package bench
 
 import org.openjdk.jmh.annotations.*
 import org.openjdk.jmh.infra.Blackhole
-import java.util.concurrent.TimeUnit
+import restrictedfn.RestrictedSelectable.{*, given}
+import test.casestudies.Expr.{*, given}
+import test.casestudies.{DatalogConnective, Expr, Query, QueryOps}
 
-import test.casestudies.{Query, DatalogConnective, QueryOps, Expr}
-import QueryOps.{given, *}
-import restrictedfn.RestrictedSelectable.{given, *}
+import java.nio.file.{Files, Paths}
+import java.util.concurrent.TimeUnit
 import scala.NamedTuple.*
 
-type IntRow = (i1: Int, i2: Int)
-
+/**
+ * Benchmarks for Datalog generation from DSL queries.
+ * Measures the time to generate Datalog IR and convert to string.
+ */
 @Fork(1)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-class DatalogBenchmark {
+class DatalogGenerationExplicitBenchmark {
+
+  import test.casestudies.QueryExplicitOps.*
+  // ========== TRANSITIVE CLOSURE ==========
 
   @Benchmark
-  def transitiveClosure_restricted(blackhole: Blackhole): Unit = {
-    // Classic transitive closure: path(x,y) :- edge(x,y).
-    //                             path(x,z) :- path(x,y), edge(y,z).
+  def tc_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    type IntRow = (i1: Int, i2: Int)
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
       DatalogConnective.apply(Tuple1(
-        pathTuple._1.flatMap(p =>
+        pathTuple._1.flatMap_explicit(p =>
           edges
-            .filter(e => p.i2 == e.i1)
-            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
+            .filter_explicit(e => p.i2 == e.i1)
+            .map_explicit(e => (i1 = p.i1, i2 = e.i2).toRow)
         )
       ))
-    )(0)
-    blackhole.consume(path)
+    )._1
+
+    val datalog = path.peek()
+    blackhole.consume(datalog)
   }
 
   @Benchmark
-  def transitiveClosure_unrestricted(blackhole: Blackhole): Unit = {
-    // Same transitive closure using unrestrictedFixedPoint
+  def tc_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    type IntRow = (i1: Int, i2: Int)
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.unrestrictedFixedPoint(Tuple1(edges))((pathTuple) =>
       Tuple1(
@@ -48,27 +61,34 @@ class DatalogBenchmark {
             .map(e => (i1 = p.i1, i2 = e.i2).toRow)
         )
       )
-    )(0)
-    blackhole.consume(path)
+    )._1
+
+    val datalog = path.peek()
+    blackhole.consume(datalog)
   }
 
-  // ========== ANCESTRY BENCHMARK ==========
+  // ========== ANCESTRY ==========
 
   @Benchmark
-  def ancestry_restricted(blackhole: Blackhole): Unit = {
-    type Parent = (parent: String, child: String)
+  def ancestry_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    type Parent = (parent: Int, child: Int)
+    type Generation = (name: Int, gen: Int)
 
     val parents = Query.edb[Parent]("parents", "parent", "child")
+
     val base = parents
-      .filter(p => p.child == Expr.ExprLit(1))
+      .filter(p => p.parent == Expr.ExprLit(1))
       .map(p => (name = p.child, gen = Expr.ExprLit(1)))
 
     val generationQuery = Query.fixedPoint(Tuple1(base))(genTuple =>
       DatalogConnective.apply(Tuple1(
-        genTuple._1.flatMap(g =>
+        genTuple._1.flatMap_explicit(g =>
           parents
-            .filter(parent => parent.parent == g.name)
-            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
+            .filter_explicit(parent => parent.parent == g.name)
+            .map_explicit(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       ))
     )
@@ -78,16 +98,22 @@ class DatalogBenchmark {
       .filter(g => g.gen == Expr.ExprLit(2))
       .map(g => (name = g.name))
 
-    blackhole.consume(result)
+    val datalog = result.peek()
+    blackhole.consume(datalog)
   }
 
   @Benchmark
-  def ancestry_unrestricted(blackhole: Blackhole): Unit = {
-    type Parent = (parent: String, child: String)
+  def ancestry_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
+    type Parent = (parent: Int, child: Int)
+    type Generation = (name: Int, gen: Int)
 
     val parents = Query.edb[Parent]("parents", "parent", "child")
+
     val base = parents
-      .filter(p => p.child == Expr.ExprLit(1))
+      .filter(p => p.parent == Expr.ExprLit(1))
       .map(p => (name = p.child, gen = Expr.ExprLit(1)))
 
     val generationQuery = Query.unrestrictedFixedPoint(Tuple1(base))(genTuple =>
@@ -105,13 +131,17 @@ class DatalogBenchmark {
       .filter(g => g.gen == Expr.ExprLit(2))
       .map(g => (name = g.name))
 
-    blackhole.consume(result)
+    val datalog = result.peek()
+    blackhole.consume(datalog)
   }
 
-  // ========== SSSP BENCHMARK ==========
+  // ========== SSSP ==========
 
   @Benchmark
-  def sssp_restricted(blackhole: Blackhole): Unit = {
+  def sssp_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     type Edge = (src: Int, dst: Int, cost: Int)
     type Cost = (dst: Int, cost: Int)
 
@@ -120,19 +150,24 @@ class DatalogBenchmark {
 
     val costQuery = Query.fixedPoint(Tuple1(baseEDB))(costTuple =>
       DatalogConnective.apply(Tuple1(
-        costTuple._1.flatMap(c =>
+        costTuple._1.flatMap_explicit(c =>
           edgeEDB
-            .filter(edge => edge.src == c.dst)
-            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
+            .filter_explicit(edge => edge.src == c.dst)
+            .map_explicit(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       ))
     )
 
-    blackhole.consume(costQuery._1)
+    val result = costQuery._1
+    val datalog = result.peek()
+    blackhole.consume(datalog)
   }
 
   @Benchmark
-  def sssp_unrestricted(blackhole: Blackhole): Unit = {
+  def sssp_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     type Edge = (src: Int, dst: Int, cost: Int)
     type Cost = (dst: Int, cost: Int)
 
@@ -149,6 +184,8 @@ class DatalogBenchmark {
       )
     )
 
-    blackhole.consume(costQuery._1)
+    val result = costQuery._1
+    val datalog = result.peek()
+    blackhole.consume(datalog)
   }
 }

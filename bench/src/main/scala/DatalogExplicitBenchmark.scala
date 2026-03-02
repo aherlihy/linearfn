@@ -5,11 +5,10 @@ import org.openjdk.jmh.infra.Blackhole
 import java.util.concurrent.TimeUnit
 
 import test.casestudies.{Query, DatalogConnective, QueryOps, Expr}
-import QueryOps.{given, *}
 import restrictedfn.RestrictedSelectable.{given, *}
 import scala.NamedTuple.*
 
-type IntRow = (i1: Int, i2: Int)
+//type IntRow = (i1: Int, i2: Int)
 
 @Fork(1)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
@@ -17,7 +16,8 @@ type IntRow = (i1: Int, i2: Int)
 @State(Scope.Thread)
 @BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-class DatalogBenchmark {
+class DatalogExplicitBenchmark {
+  import test.casestudies.QueryExplicitOps.*
 
   @Benchmark
   def transitiveClosure_restricted(blackhole: Blackhole): Unit = {
@@ -26,10 +26,10 @@ class DatalogBenchmark {
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.fixedPoint(Tuple1(edges))((pathTuple) =>
       DatalogConnective.apply(Tuple1(
-        pathTuple._1.flatMap(p =>
+        pathTuple._1.flatMap_explicit(p =>
           edges
-            .filter(e => p.i2 == e.i1)
-            .map(e => (i1 = p.i1, i2 = e.i2).toRow)
+            .filter_explicit(e => p.i2 == e.i1)
+            .map_explicit(e => (i1 = p.i1, i2 = e.i2).toRow)
         )
       ))
     )(0)
@@ -65,10 +65,10 @@ class DatalogBenchmark {
 
     val generationQuery = Query.fixedPoint(Tuple1(base))(genTuple =>
       DatalogConnective.apply(Tuple1(
-        genTuple._1.flatMap(g =>
+        genTuple._1.flatMap_explicit(g =>
           parents
-            .filter(parent => parent.parent == g.name)
-            .map(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
+            .filter_explicit(parent => parent.parent == g.name)
+            .map_explicit(parent => (name = parent.child, gen = g.gen + Expr.ExprLit(1)).toRow)
         )
       ))
     )
@@ -120,10 +120,10 @@ class DatalogBenchmark {
 
     val costQuery = Query.fixedPoint(Tuple1(baseEDB))(costTuple =>
       DatalogConnective.apply(Tuple1(
-        costTuple._1.flatMap(c =>
+        costTuple._1.flatMap_explicit(c =>
           edgeEDB
-            .filter(edge => edge.src == c.dst)
-            .map(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
+            .filter_explicit(edge => edge.src == c.dst)
+            .map_explicit(edge => (dst = edge.dst, cost = c.cost + edge.cost).toRow)
         )
       ))
     )
