@@ -179,7 +179,7 @@ object Query:
    * - Same number of arguments and returns (strictness)
    * - Return types match argument types (type safety for recursive fixed-point)
    */
-  def fixedPoint[QT <: Tuple, RQT <: Tuple, DT <: Tuple](
+  def fixedPoint[QT <: Tuple, RQT <: Tuple](
     bases: QT
   )(fns: RestrictedSelectable.RestrictedFn.RestrictedFn[QT, DatalogConnective[RQT]])(
     using
@@ -216,13 +216,13 @@ object Query:
    */
   def unrestrictedFixedPoint[QT <: Tuple](
     bases: QT
-  )(fns: QT => QT)(
-    using
-      @implicitNotFound("unrestrictedFixedPoint requires same number of arguments and returns")
-      evStrict: Tuple.Size[QT] =:= Tuple.Size[QT],
-      @implicitNotFound("unrestrictedFixedPoint requires return types to match argument types")
-      evReturnTypes: ExtractQueryRowTypes[QT] =:= ExtractQueryRowTypes[QT]
-  ): QT = {
+  )(fns: QT => QT)
+//    (using
+//      @implicitNotFound("unrestrictedFixedPoint requires same number of arguments and returns")
+//      evStrict: Tuple.Size[QT] =:= Tuple.Size[QT],
+//      @implicitNotFound("unrestrictedFixedPoint requires return types to match argument types")
+//      evReturnTypes: ExtractQueryRowTypes[QT] =:= ExtractQueryRowTypes[QT])
+  : QT = {
     val argsRefs = (0 until bases.size).map(_ => IntensionalRef[Any](freshIntensionalId()))
     val argsRefsTuple = Tuple.fromArray(argsRefs.toArray).asInstanceOf[QT]
     val evaluated = fns(argsRefsTuple)

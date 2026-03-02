@@ -15,6 +15,9 @@ type IntRow = (i1: Int, i2: Int)
 class LinearDatalogTest extends FunSuite:
 
   test("Construct normal query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val q1 = Query.edb[IntRow]("q1", "i1", "i2")
     val q2 = Query.edb[IntRow]("q2", "i1", "i2")
     val query1 = for
@@ -48,6 +51,9 @@ class LinearDatalogTest extends FunSuite:
   }
 
   test("Generate Datalog from simple query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val datalog = edges.peek()
     // EDB queries now generate rules
@@ -56,54 +62,69 @@ class LinearDatalogTest extends FunSuite:
   }
 
   test("Generate Datalog from union query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val q1 = Query.edb[IntRow]("q1", "i1", "i2")
     val q2 = Query.edb[IntRow]("q2", "i1", "i2")
     val unionQuery = q1.union(q2)
     val datalog = unionQuery.peek()
     // Union generates intermediate predicates for each branch, then combines them
-    val expected = """p2(v0, v1) :- q1(v0, v1).
+    val expected = """p1(v0, v1) :- q1(v0, v1).
 
-p3(v2, v3) :- q2(v2, v3).
+p2(v2, v3) :- q2(v2, v3).
 
-p1(v4, v5) :- p2(v4, v5).
-p1(v4, v5) :- p3(v4, v5)."""
+p0(v4, v5) :- p1(v4, v5).
+p0(v4, v5) :- p2(v4, v5)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from map query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i2, i2 = e.i1))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then map it
-    val expected = """p5(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p4(v3, v2) :- p5(v2, v3)."""
+p0(v3, v2) :- p1(v2, v3)."""
     assertEquals(datalog, expected)
   }
   
   test("Generate Datalog from constant map query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i2, i2 = Expr.ExprLit(10)))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then map with constant
-    val expected = """p7(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p6(v3, 10) :- p7(v2, v3)."""
+p0(v3, 10) :- p1(v2, v3)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from identity map") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.map(e => (i1 = e.i1, i2 = e.i2))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then identity map
-    val expected = """p9(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p8(v2, v3) :- p9(v2, v3)."""
+p0(v2, v3) :- p1(v2, v3)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from complex query") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     // More complex: union then map
     val q1 = Query.edb[IntRow]("q1", "i1", "i2")
     val q2 = Query.edb[IntRow]("q2", "i1", "i2")
@@ -111,39 +132,48 @@ p8(v2, v3) :- p9(v2, v3)."""
     val mapped = unionQuery.map(e => (i1 = e.i2, i2 = e.i1))
     val datalog = mapped.peek()
     // Union creates intermediate predicates, then map swaps fields
-    val expected = """p12(v0, v1) :- q1(v0, v1).
+    val expected = """p2(v0, v1) :- q1(v0, v1).
 
-p13(v2, v3) :- q2(v2, v3).
+p3(v2, v3) :- q2(v2, v3).
 
-p11(v4, v5) :- p12(v4, v5).
-p11(v4, v5) :- p13(v4, v5).
+p1(v4, v5) :- p2(v4, v5).
+p1(v4, v5) :- p3(v4, v5).
 
-p10(v7, v6) :- p11(v6, v7)."""
+p0(v7, v6) :- p1(v6, v7)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from constant filter query 1") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.filter(e => e.i2 == Expr.ExprLit(10))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then filter with constant
-    val expected = """p15(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p14(v2, v3) :- p15(v2, v3), v3 == 10."""
+p0(v2, v3) :- p1(v2, v3), v3 == 10."""
     assertEquals(datalog, expected)
   }
   test("Generate Datalog from constant filter query 2") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val mapped = edges.filter(e => (e.i2 == Expr.ExprLit(10)) && (e.i1 == Expr.ExprLit(5)))
     val datalog = mapped.peek()
     // Should generate: intermediate predicate for edges, then filter with two constants
-    val expected = """p17(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p16(v2, v3) :- p17(v2, v3), v3 == 10, v2 == 5."""
+p0(v2, v3) :- p1(v2, v3), v3 == 10, v2 == 5."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from simple flatMap join") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val path = Query.edb[IntRow]("path", "i1", "i2")
     val query = path.flatMap(p1 =>
       path.filter(p2 => p1.i2 == p2.i1)
@@ -154,15 +184,18 @@ p16(v2, v3) :- p17(v2, v3), v3 == 10, v2 == 5."""
     // Where p1.i2 == p2.i1 becomes the join condition (second field of first == first field of second)
     // And output is (p1.i1, p2.i2) which is (first of first, second of second)
     // Variables are unified inline: v6 is replaced with v3
-    val expected = """p19(v0, v1) :- path(v0, v1).
+    val expected = """p1(v0, v1) :- path(v0, v1).
 
-p20(v4, v5) :- path(v4, v5).
+p2(v4, v5) :- path(v4, v5).
 
-p18(v2, v7) :- p19(v2, v3), p20(v3, v7)."""
+p0(v2, v7) :- p1(v2, v3), p2(v3, v7)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from flatMap with two different EDBs") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
     val query = edges.flatMap(e =>
@@ -172,15 +205,18 @@ p18(v2, v7) :- p19(v2, v3), p20(v3, v7)."""
     val datalog = query.peek()
     // Should generate: result(x, y) :- edges(x, z), nodes(z, y)
     // Variables are unified inline: v6 is replaced with v3
-    val expected = """p22(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p23(v4, v5) :- nodes(v4, v5).
+p2(v4, v5) :- nodes(v4, v5).
 
-p21(v2, v7) :- p22(v2, v3), p23(v3, v7)."""
+p0(v2, v7) :- p1(v2, v3), p2(v3, v7)."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from flatMap with join and constant constraint") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val edges = Query.edb[IntRow]("edges", "i1", "i2")
     val nodes = Query.edb[IntRow]("nodes", "i1", "i2")
     val query = edges.flatMap(e =>
@@ -191,16 +227,15 @@ p21(v2, v7) :- p22(v2, v3), p23(v3, v7)."""
     // Should generate: result(x, y) :- edges(x, z), nodes(z, y), y == 10
     // Variables unified inline (e.i2 == n.i1 becomes shared variable)
     // Constant constraint kept (n.i2 == 10)
-    val expected = """p25(v0, v1) :- edges(v0, v1).
+    val expected = """p1(v0, v1) :- edges(v0, v1).
 
-p26(v4, v5) :- nodes(v4, v5).
+p2(v4, v5) :- nodes(v4, v5).
 
-p24(v2, v7) :- p25(v2, v3), p26(v3, v7), v7 == 10."""
+p0(v2, v7) :- p1(v2, v3), p2(v3, v7), v7 == 10."""
     assertEquals(datalog, expected)
   }
 
   test("Generate Datalog from recursive fixedPoint query") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -235,7 +270,6 @@ idb0(v10, v11) :- p2(v10, v11)."""
   }
 
   test("Generate Datalog from fixedPoint with 2 independent predicates") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -286,7 +320,6 @@ idb1(v22, v23) :- p6(v22, v23)."""
   }
 
   test("Generate Datalog from fixedPoint with 2 predicates using union") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -343,7 +376,6 @@ idb1(v26, v27) :- p6(v26, v27)."""
   }
 
   test("Generate Datalog from fixedPoint with 2 predicates using join") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -393,7 +425,6 @@ idb1(v22, v23) :- p6(v22, v23)."""
   }
 
   test("Generate Datalog from fixedPoint with 3 predicates with dependencies") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -466,7 +497,6 @@ idb2(v38, v39) :- p10(v38, v39)."""
   }
 
   test("Generate Datalog from fixedPoint with mutual recursion") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -555,6 +585,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   // ============================================================================
 
   test("NEGATIVE: too few returns - violates fixedPoint constraints") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
 
@@ -570,6 +603,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: too many returns - violates fixedPoint constraints") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
       import restrictedfn.RestrictedSelectable.Restricted
@@ -590,6 +626,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: wrong wrapped types") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors(
       """
       import QueryOps.*
@@ -605,6 +644,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: ForEach-Affine - using argument twice in same return") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
 
@@ -623,6 +665,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: ForEach-Affine - using argument twice via intermediate") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
 
@@ -642,6 +687,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: ForAll-Relevant - forgetting to use an argument") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
 
@@ -661,6 +709,9 @@ idb1(v42, v43) :- p10(v42, v43)."""
   }
 
   test("NEGATIVE: ForAll-Relevant - using external query instead") {
+    Query.intensionalRefCount = 0
+    Query.predCounter = 0
+
     val obtained = compileErrors("""
       import QueryOps.*
 

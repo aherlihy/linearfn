@@ -27,6 +27,18 @@ class SouffleExecutionBenchmark {
   val isMac = sys.props("os.name").toLowerCase.contains("mac")
   val souffleExecutable = if isMac then "souffle" else "/scratch/herlihy/souffle/build/src/souffle"
 
+  // Use bench/data/files instead of /tmp for data files
+  // Get absolute path that works even when benchmark is forked
+  val benchDataDir = {
+    val userDir = System.getProperty("user.dir")
+    // If we're in a subproject (bench), go up one level to project root
+    val projectRoot = if userDir.endsWith("/bench") then
+      Paths.get(userDir).getParent
+    else
+      Paths.get(userDir)
+    projectRoot.resolve("bench/data/files").toAbsolutePath.toString
+  }
+
   /**
    * Convert Datalog output to valid Souffle format
    */
@@ -108,7 +120,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = path.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/tc-facts", Seq("edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -131,7 +143,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = path.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/tc-facts", Seq("edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -167,7 +179,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -201,7 +213,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -231,7 +243,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/sssp-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -259,7 +271,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/sssp-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0")
     blackhole.consume(outputFile)
   }
 }

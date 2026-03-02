@@ -33,5 +33,8 @@ def generate_ancestry_data(output_dir):
         print(f"Output: {output_dir}/parents.facts")
 
 if __name__ == "__main__":
-    output_dir = sys.argv[1] if len(sys.argv) > 1 else "/tmp/ancestry-facts"
+    # Default to bench/data/files/ancestry-facts relative to script location
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_dir = os.path.join(script_dir, "..", "files", "ancestry-facts")
+    output_dir = sys.argv[1] if len(sys.argv) > 1 else default_dir
     generate_ancestry_data(output_dir)

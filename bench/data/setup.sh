@@ -6,7 +6,7 @@ set -e  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GENERATORS_DIR="$SCRIPT_DIR/generators"
-DATA_DIR="/tmp"
+DATA_DIR="$SCRIPT_DIR/files"
 
 echo "=== Benchmark Data Setup ==="
 echo "Generating benchmark data in $DATA_DIR"

@@ -1,5 +1,5 @@
-# Ignore all generated data files
-*.facts
+# Ignore all generated data files in the files/ directory
+files/
 
 # Keep the generators and documentation
 !generators/

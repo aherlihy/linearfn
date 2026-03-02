@@ -8,6 +8,8 @@ lazy val root = (project in file("."))
     // Note: -experimental removed since @ops is now a simple marker annotation
     // scalacOptions ++= Seq("-experimental"),
     libraryDependencies += "org.scalameta" %% "munit" % "1.0.0" % Test,
+    // Force tests to run serially to avoid race conditions with global counters
+    Test / parallelExecution := false,
     Compile / sourceGenerators += Def.task {
       val sourceDir = (Compile / scalaSource).value
       val targetDir = (Compile / sourceManaged).value

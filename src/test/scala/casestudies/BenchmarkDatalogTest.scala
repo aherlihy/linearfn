@@ -36,7 +36,6 @@ class BenchmarkDatalogTest extends FunSuite:
    *     generation(name, 2).
    */
   test("Ancestry - generate correct Datalog") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -73,22 +72,22 @@ class BenchmarkDatalogTest extends FunSuite:
 
     val expected = """p5(v0, v1) :- parents(v0, v1).
 
-p4(v2, v3) :- p5(v2, v3), v1 == 1.
+p4(v2, v3) :- p5(v2, v3), v3 == 1.
 
-p3(v6, 1) :- p4(v4, v5).
+p3(v5, 1) :- p4(v4, v5).
 
 p7(v6, v7) :- idb0(v6, v7).
 
 p8(v10, v11) :- parents(v10, v11).
 
-p6(v8, v14) :- p7(v8, v9), p8(v8, v13).
+p6(v13, v9 + 1) :- p7(v8, v9), p8(v8, v13).
 
 idb0(v14, v15) :- p3(v14, v15).
 idb0(v14, v15) :- p6(v14, v15).
 
-p1(v16, v17) :- idb0(v16, v17), v1 == 2.
+p1(v16, v17) :- idb0(v16, v17), v17 == 2.
 
-p0(v20) :- p1(v18, v19)."""
+p0(v18) :- p1(v18, v19)."""
 
     println("=== ANCESTRY DATALOG ===")
     println(datalog)
@@ -121,7 +120,6 @@ p0(v20) :- p1(v18, v19)."""
    * we focus on the recursive reachability with costs (without aggregation).
    */
   test("SSSP - generate correct Datalog") {
-    // Reset counters for deterministic predicate names
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -150,12 +148,12 @@ p0(v20) :- p1(v18, v19)."""
 
 p3(v2, v3) :- idb0(v2, v3).
 
-p4(v6, v7) :- edge(v6, v7).
+p4(v6, v7, v8) :- edge(v6, v7, v8).
 
-p2(v4, v10) :- p3(v4, v5), p4(v4, v9).
+p2(v10, v5 + v11) :- p3(v4, v5), p4(v4, v10, v11).
 
-idb0(v10, v11) :- p1(v10, v11).
-idb0(v10, v11) :- p2(v10, v11)."""
+idb0(v12, v13) :- p1(v12, v13).
+idb0(v12, v13) :- p2(v12, v13)."""
 
     println("=== SSSP DATALOG ===")
     println(datalog)
@@ -200,22 +198,22 @@ idb0(v10, v11) :- p2(v10, v11)."""
     // Should generate the exact same Datalog as the restricted version
     val expected = """p5(v0, v1) :- parents(v0, v1).
 
-p4(v2, v3) :- p5(v2, v3), v1 == 1.
+p4(v2, v3) :- p5(v2, v3), v3 == 1.
 
-p3(v6, 1) :- p4(v4, v5).
+p3(v5, 1) :- p4(v4, v5).
 
 p7(v6, v7) :- idb0(v6, v7).
 
 p8(v10, v11) :- parents(v10, v11).
 
-p6(v8, v14) :- p7(v8, v9), p8(v8, v13).
+p6(v13, v9 + 1) :- p7(v8, v9), p8(v8, v13).
 
 idb0(v14, v15) :- p3(v14, v15).
 idb0(v14, v15) :- p6(v14, v15).
 
-p1(v16, v17) :- idb0(v16, v17), v1 == 2.
+p1(v16, v17) :- idb0(v16, v17), v17 == 2.
 
-p0(v20) :- p1(v18, v19)."""
+p0(v18) :- p1(v18, v19)."""
 
     println("=== ANCESTRY UNRESTRICTED DATALOG ===")
     println(datalog)
@@ -255,12 +253,12 @@ p0(v20) :- p1(v18, v19)."""
 
 p3(v2, v3) :- idb0(v2, v3).
 
-p4(v6, v7) :- edge(v6, v7).
+p4(v6, v7, v8) :- edge(v6, v7, v8).
 
-p2(v4, v10) :- p3(v4, v5), p4(v4, v9).
+p2(v10, v5 + v11) :- p3(v4, v5), p4(v4, v10, v11).
 
-idb0(v10, v11) :- p1(v10, v11).
-idb0(v10, v11) :- p2(v10, v11)."""
+idb0(v12, v13) :- p1(v12, v13).
+idb0(v12, v13) :- p2(v12, v13)."""
 
     println("=== SSSP UNRESTRICTED DATALOG ===")
     println(datalog)

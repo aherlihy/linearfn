@@ -19,22 +19,22 @@ sbt "bench/Jmh/run bench.DatalogGenerationBenchmark"
 
 ## Generated Data
 
-The setup script generates three benchmark datasets in `/tmp/`:
+The setup script generates three benchmark datasets in `bench/data/files/`:
 
 ### Transitive Closure (TC)
-- **Location**: `/tmp/tc-facts/edge.facts`
+- **Location**: `bench/data/files/tc-facts/edge.facts`
 - **Size**: ~41 KB (4,431 edges)
 - **Structure**: Chains with branches and cross-edges
 - **Expected execution time**: ~6-7 seconds
 
 ### Single-Source Shortest Path (SSSP)
-- **Location**: `/tmp/sssp-facts/base.facts` and `/tmp/sssp-facts/edge.facts`
+- **Location**: `bench/data/files/sssp-facts/base.facts` and `bench/data/files/sssp-facts/edge.facts`
 - **Size**: ~344 KB (29,601 edges)
 - **Structure**: 100×100 grid graph with random edge costs
 - **Expected execution time**: ~2-3 seconds
 
 ### Ancestry
-- **Location**: `/tmp/ancestry-facts/parents.facts`
+- **Location**: `bench/data/files/ancestry-facts/parents.facts`
 - **Size**: ~73 MB (4,914,600 parent-child relationships)
 - **Structure**: 300 binary trees, each with depth 13
 - **Expected execution time**: ~1.5 seconds
@@ -44,14 +44,19 @@ The setup script generates three benchmark datasets in `/tmp/`:
 You can also generate individual datasets:
 
 ```bash
-# Generate TC data
-python3 bench/data/generators/generate_tc_data.py /tmp/tc-facts
+# Generate TC data (defaults to bench/data/files/tc-facts)
+python3 bench/data/generators/generate_tc_data.py
 
-# Generate SSSP data
-python3 bench/data/generators/generate_sssp_data.py /tmp/sssp-facts
+# Generate SSSP data (defaults to bench/data/files/sssp-facts)
+python3 bench/data/generators/generate_sssp_data.py
 
-# Generate Ancestry data
-python3 bench/data/generators/generate_ancestry_data.py /tmp/ancestry-facts
+# Generate Ancestry data (defaults to bench/data/files/ancestry-facts)
+python3 bench/data/generators/generate_ancestry_data.py
+
+# Or specify custom output directories:
+python3 bench/data/generators/generate_tc_data.py /custom/path/tc-facts
+python3 bench/data/generators/generate_sssp_data.py /custom/path/sssp-facts
+python3 bench/data/generators/generate_ancestry_data.py /custom/path/ancestry-facts
 ```
 
 ## Requirements
