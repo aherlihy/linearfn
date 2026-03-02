@@ -18,15 +18,15 @@ import scala.NamedTuple.*
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @State(Scope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@BenchmarkMode(Array(Mode.Throughput))
+@OutputTimeUnit(TimeUnit.SECONDS)
 class DatalogGenerationExplicitBenchmark {
 
   import test.casestudies.QueryExplicitOps.*
   // ========== TRANSITIVE CLOSURE ==========
 
   @Benchmark
-  def tc_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def tc_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -47,7 +47,7 @@ class DatalogGenerationExplicitBenchmark {
   }
 
   @Benchmark
-  def tc_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def tc_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -70,7 +70,7 @@ class DatalogGenerationExplicitBenchmark {
   // ========== ANCESTRY ==========
 
   @Benchmark
-  def ancestry_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def ancestry_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -103,7 +103,7 @@ class DatalogGenerationExplicitBenchmark {
   }
 
   @Benchmark
-  def ancestry_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def ancestry_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -138,7 +138,7 @@ class DatalogGenerationExplicitBenchmark {
   // ========== SSSP ==========
 
   @Benchmark
-  def sssp_restricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def sssp_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -164,7 +164,7 @@ class DatalogGenerationExplicitBenchmark {
   }
 
   @Benchmark
-  def sssp_unrestricted_generateDatalog(blackhole: Blackhole): Unit = {
+  def sssp_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 

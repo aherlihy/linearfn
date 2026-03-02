@@ -112,7 +112,7 @@ class SouffleExecutionBenchmark {
   // ========== TRANSITIVE CLOSURE ==========
 
   @Benchmark
-  def tc_restricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def tc_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -135,7 +135,7 @@ class SouffleExecutionBenchmark {
   }
 
   @Benchmark
-  def tc_unrestricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def tc_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -160,7 +160,7 @@ class SouffleExecutionBenchmark {
   // ========== ANCESTRY ==========
 
   @Benchmark
-  def ancestry_restricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def ancestry_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -194,7 +194,7 @@ class SouffleExecutionBenchmark {
   }
 
   @Benchmark
-  def ancestry_unrestricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def ancestry_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -230,7 +230,7 @@ class SouffleExecutionBenchmark {
   // ========== SSSP ==========
 
   @Benchmark
-  def sssp_restricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def sssp_restricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 
@@ -258,7 +258,7 @@ class SouffleExecutionBenchmark {
   }
 
   @Benchmark
-  def sssp_unrestricted_souffleExecution(blackhole: Blackhole): Unit = {
+  def sssp_unrestricted(blackhole: Blackhole): Unit = {
     Query.intensionalRefCount = 0
     Query.predCounter = 0
 

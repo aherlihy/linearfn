@@ -14,13 +14,13 @@ import scala.NamedTuple.*
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @State(Scope.Thread)
-@BenchmarkMode(Array(Mode.AverageTime))
-@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@BenchmarkMode(Array(Mode.Throughput))
+@OutputTimeUnit(TimeUnit.SECONDS)
 class DatalogExplicitBenchmark {
   import test.casestudies.QueryExplicitOps.*
 
   @Benchmark
-  def transitiveClosure_restricted(blackhole: Blackhole): Unit = {
+  def tc_restricted(blackhole: Blackhole): Unit = {
     // Classic transitive closure: path(x,y) :- edge(x,y).
     //                             path(x,z) :- path(x,y), edge(y,z).
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
@@ -37,7 +37,7 @@ class DatalogExplicitBenchmark {
   }
 
   @Benchmark
-  def transitiveClosure_unrestricted(blackhole: Blackhole): Unit = {
+  def tc_unrestricted(blackhole: Blackhole): Unit = {
     // Same transitive closure using unrestrictedFixedPoint
     val edges = Query.edb[IntRow]("edge", "i1", "i2")
     val path = Query.unrestrictedFixedPoint(Tuple1(edges))((pathTuple) =>
