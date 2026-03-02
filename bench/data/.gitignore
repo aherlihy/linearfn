@@ -1,6 +1,9 @@
 # Ignore all generated data files in the files/ directory
 files/
 
+# Ignore scratch directory with benchmark outputs
+scratch/
+
 # Keep the generators and documentation
 !generators/
 !*.py

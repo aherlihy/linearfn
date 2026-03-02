@@ -77,26 +77,36 @@ class SouffleExecutionBenchmark {
   /**
    * Run Souffle on the given Datalog program and return output file path
    */
-  def runSouffle(datalog: String, factsDir: String, edbRelations: Seq[String], outputRelation: String): String = {
+  def runSouffle(datalog: String, factsDir: String, edbRelations: Seq[String], outputRelation: String, benchmarkName: String = "benchmark"): String = {
     val souffleProgram = toSouffleFormat(datalog, edbRelations, outputRelation)
 
-    val tempFile = Files.createTempFile("datalog_bench_", ".dl")
-    Files.write(tempFile, souffleProgram.getBytes)
-
-    val outputDir = Files.createTempDirectory("souffle_bench_output_")
-
-    try {
-      val command = s"$souffleExecutable -F $factsDir -D ${outputDir} ${tempFile}"
-      val exitCode = command.!
-
-      if exitCode != 0 then
-        throw new RuntimeException(s"Souffle execution failed with exit code $exitCode")
-
-      val outputFile = outputDir.resolve(s"$outputRelation.csv")
-      outputFile.toString
-    } finally {
-      Files.deleteIfExists(tempFile)
+    // Use bench/data/scratch for easy inspection
+    val scratchDir = {
+      val userDir = System.getProperty("user.dir")
+      val projectRoot = if userDir.endsWith("/bench") then
+        Paths.get(userDir).getParent
+      else
+        Paths.get(userDir)
+      projectRoot.resolve("bench/data/scratch")
     }
+    Files.createDirectories(scratchDir)
+
+    // Create readable filenames based on benchmark name
+    val timestamp = System.currentTimeMillis()
+    val datalogFile = scratchDir.resolve(s"${benchmarkName}_${timestamp}.dl")
+    val outputDir = scratchDir.resolve(s"${benchmarkName}_output")
+
+    Files.createDirectories(outputDir)
+    Files.write(datalogFile, souffleProgram.getBytes)
+
+    val command = s"$souffleExecutable -F $factsDir -D ${outputDir} ${datalogFile}"
+    val exitCode = command.!
+
+    if exitCode != 0 then
+      throw new RuntimeException(s"Souffle execution failed with exit code $exitCode")
+
+    val outputFile = outputDir.resolve(s"$outputRelation.csv")
+    outputFile.toString
   }
 
   // ========== TRANSITIVE CLOSURE ==========
@@ -120,7 +130,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = path.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0", "tc_restricted")
     blackhole.consume(outputFile)
   }
 
@@ -143,7 +153,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = path.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/tc-facts", Seq("edge"), "idb0", "tc_unrestricted")
     blackhole.consume(outputFile)
   }
 
@@ -179,7 +189,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0", "ancestry_restricted")
     blackhole.consume(outputFile)
   }
 
@@ -213,7 +223,7 @@ class SouffleExecutionBenchmark {
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/ancestry-facts", Seq("parents"), "idb0", "ancestry_unrestricted")
     blackhole.consume(outputFile)
   }
 
@@ -243,7 +253,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0", "sssp_restricted")
     blackhole.consume(outputFile)
   }
 
@@ -271,7 +281,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, s"$benchDataDir/sssp-facts", Seq("base", "edge"), "idb0", "sssp_unrestricted")
     blackhole.consume(outputFile)
   }
 }
