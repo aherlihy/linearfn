@@ -162,13 +162,12 @@ class SouffleExecutionBenchmark {
     )
 
     val generation = generationQuery._1
+    // Don't filter - compute all generations to make benchmark take longer
     val result = generation
-      .filter(g => g.gen == Expr.ExprLit(2))
-      .map(g => (name = g.name))
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "p0")
+    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -197,13 +196,12 @@ class SouffleExecutionBenchmark {
     )
 
     val generation = generationQuery._1
+    // Don't filter - compute all generations to make benchmark take longer
     val result = generation
-      .filter(g => g.gen == Expr.ExprLit(2))
-      .map(g => (name = g.name))
 
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "p0")
+    val outputFile = runSouffle(datalog, "/tmp/ancestry-facts", Seq("parents"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -233,7 +231,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/Users/anna/lamp/carac/src/test/scala/test/examples/rqb_sssp/souffle-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, "/tmp/sssp-facts", Seq("base", "edge"), "idb0")
     blackhole.consume(outputFile)
   }
 
@@ -261,7 +259,7 @@ class SouffleExecutionBenchmark {
     val result = costQuery._1
     val datalog = result.peek()
 
-    val outputFile = runSouffle(datalog, "/Users/anna/lamp/carac/src/test/scala/test/examples/rqb_sssp/souffle-facts", Seq("base", "edge"), "idb0")
+    val outputFile = runSouffle(datalog, "/tmp/sssp-facts", Seq("base", "edge"), "idb0")
     blackhole.consume(outputFile)
   }
 }

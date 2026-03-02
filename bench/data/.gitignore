@@ -1,0 +1,9 @@
+# Ignore all generated data files
+*.facts
+
+# Keep the generators and documentation
+!generators/
+!*.py
+!*.sh
+!*.md
+!.gitignore
