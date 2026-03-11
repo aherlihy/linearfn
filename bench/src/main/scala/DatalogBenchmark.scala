@@ -15,8 +15,8 @@ type IntRow = (i1: Int, i2: Int)
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @State(Scope.Thread)
-@BenchmarkMode(Array(Mode.Throughput))
-@OutputTimeUnit(TimeUnit.SECONDS)
+@BenchmarkMode(Array(Mode.AverageTime))
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 class DatalogBenchmark {
 
   @Benchmark

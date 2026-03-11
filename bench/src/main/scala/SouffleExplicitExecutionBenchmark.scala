@@ -18,7 +18,7 @@ import scala.sys.process.*
 @Warmup(iterations = 3, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @State(Scope.Thread)
-@BenchmarkMode(Array(Mode.Throughput))
+@BenchmarkMode(Array(Mode.AverageTime))
 @OutputTimeUnit(TimeUnit.SECONDS)
 class SouffleExplicitExecutionBenchmark {
 
